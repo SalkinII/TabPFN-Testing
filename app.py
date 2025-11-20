@@ -55,62 +55,143 @@ def load_csv_file(file_input) -> pd.DataFrame:
     Load CSV file from Panel FileInput.
     
     Args:
-        file_input: Panel FileInput widget
+        file_input: Panel FileInput.value (list of bytes) or bytes directly
         
     Returns:
         Loaded DataFrame
     """
-    if file_input is None or len(file_input) == 0:
+    if file_input is None:
         log_dev_event('file_upload', 'No file input provided', {'file_input': str(file_input)})
         return None
     
-    try:
+    # Handle Panel FileInput.value format (list of bytes)
+    if isinstance(file_input, list):
+        if len(file_input) == 0:
+            log_dev_event('file_upload', 'FileInput value is empty list')
+            return None
         file_content = file_input[0]
+    elif hasattr(file_input, '__len__') and len(file_input) == 0:
+        log_dev_event('file_upload', 'FileInput value is empty')
+        return None
+    else:
+        # Direct bytes or other format
+        file_content = file_input
+    
+    try:
         
         # Log file input details for debugging
         file_type = type(file_content).__name__
         file_size = len(file_content) if hasattr(file_content, '__len__') else 'unknown'
-        log_dev_event('file_upload', f'Processing file input: type={file_type}, size={file_size}')
         
-        # Handle both bytes and string inputs from Panel FileInput
-        if isinstance(file_content, str):
-            # If it's a string, use StringIO
-            file_obj = io.StringIO(file_content)
-            df = pd.read_csv(file_obj)
-            log_dev_event('file_upload', f'Parsed CSV as string: {len(df)} rows, {len(df.columns)} columns')
-        elif isinstance(file_content, bytes):
-            # If it's bytes, use BytesIO
+        # Log first few characters for debugging (but not too much)
+        if isinstance(file_content, bytes):
+            preview = file_content[:100].decode('utf-8', errors='ignore')
+        else:
+            preview = str(file_content)[:100] if hasattr(file_content, '__str__') else 'N/A'
+        
+        log_dev_event('file_upload', f'Processing file input: type={file_type}, size={file_size}, preview_length={len(preview)}')
+        
+        # Panel FileInput typically returns bytes, but handle different cases
+        if isinstance(file_content, bytes):
+            # Most common case: bytes from FileInput
+            if len(file_content) == 0:
+                log_error(Exception("Empty bytes content"), {'context': 'load_csv_file', 'file_input_type': file_type})
+                return None
             file_obj = io.BytesIO(file_content)
-            df = pd.read_csv(file_obj)
+            df = pd.read_csv(file_obj, encoding='utf-8')
             log_dev_event('file_upload', f'Parsed CSV as bytes: {len(df)} rows, {len(df.columns)} columns')
+        elif isinstance(file_content, str):
+            # If it's a string, check if it looks like CSV content or a filename
+            if len(file_content) == 0:
+                log_error(Exception("Empty string content"), {'context': 'load_csv_file', 'file_input_type': file_type})
+                return None
+            if '\n' in file_content or ',' in file_content[:500]:
+                # Looks like CSV content
+                file_obj = io.StringIO(file_content)
+                df = pd.read_csv(file_obj)
+                log_dev_event('file_upload', f'Parsed CSV as string content: {len(df)} rows, {len(df.columns)} columns')
+            else:
+                # Might be a filename/path - this shouldn't happen with FileInput
+                log_error(Exception("String appears to be filename, not content"), {
+                    'context': 'load_csv_file', 
+                    'file_input_type': file_type,
+                    'preview': preview[:50]
+                })
+                return None
         else:
             # Try to convert to bytes
             try:
-                file_obj = io.BytesIO(bytes(file_content))
-                df = pd.read_csv(file_obj)
+                if hasattr(file_content, 'read'):
+                    # It's a file-like object
+                    df = pd.read_csv(file_content)
+                else:
+                    file_obj = io.BytesIO(bytes(file_content))
+                    df = pd.read_csv(file_obj, encoding='utf-8')
                 log_dev_event('file_upload', f'Parsed CSV after conversion: {len(df)} rows, {len(df.columns)} columns')
             except Exception as conv_e:
-                log_error(conv_e, {'context': 'load_csv_file', 'file_input_type': file_type, 'conversion_error': str(conv_e)})
-                raise
+                log_error(conv_e, {
+                    'context': 'load_csv_file', 
+                    'file_input_type': file_type, 
+                    'conversion_error': str(conv_e),
+                    'preview': preview[:50] if isinstance(preview, str) else 'N/A'
+                })
+                return None
         
         # Validate DataFrame
-        if df is None or len(df) == 0:
+        if df is None:
+            log_dev_event('file_upload', 'Error: DataFrame is None after parsing')
+            return None
+        elif len(df) == 0:
             log_dev_event('file_upload', 'Warning: DataFrame is empty after parsing')
+            # Check if it's just headers
+            if len(df.columns) > 0:
+                log_dev_event('file_upload', f'DataFrame has {len(df.columns)} columns but 0 rows (headers-only CSV)')
         elif len(df.columns) == 0:
             log_dev_event('file_upload', 'Warning: DataFrame has no columns after parsing')
         
         return df
     except pd.errors.EmptyDataError as e:
-        log_error(e, {'context': 'load_csv_file', 'error_type': 'EmptyDataError', 'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)})
+        log_error(e, {
+            'context': 'load_csv_file', 
+            'error_type': 'EmptyDataError', 
+            'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)
+        })
         print(f"Error loading CSV: File is empty - {e}")
         return None
     except pd.errors.ParserError as e:
-        log_error(e, {'context': 'load_csv_file', 'error_type': 'ParserError', 'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)})
+        log_error(e, {
+            'context': 'load_csv_file', 
+            'error_type': 'ParserError', 
+            'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)
+        })
         print(f"Error loading CSV: Parse error - {e}")
         return None
+    except UnicodeDecodeError as e:
+        # Try with different encoding
+        try:
+            file_content = file_input[0]
+            if isinstance(file_content, bytes):
+                file_obj = io.BytesIO(file_content)
+                df = pd.read_csv(file_obj, encoding='latin-1')
+                log_dev_event('file_upload', f'Parsed CSV with latin-1 encoding: {len(df)} rows, {len(df.columns)} columns')
+                return df
+        except:
+            pass
+        log_error(e, {
+            'context': 'load_csv_file', 
+            'error_type': 'UnicodeDecodeError'
+        })
+        print(f"Error loading CSV: Encoding error - {e}")
+        return None
     except Exception as e:
-        log_error(e, {'context': 'load_csv_file', 'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)})
+        log_error(e, {
+            'context': 'load_csv_file', 
+            'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None),
+            'error_details': str(e)
+        })
         print(f"Error loading CSV: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
@@ -353,16 +434,32 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     return dashboard
 
 
-def process_file(file_input):
+def process_file(event):
     """
     Process uploaded file and update dashboard.
     
     Args:
-        file_input: Panel FileInput widget
+        event: Panel Event object from param.watch()
     """
     global current_df
     
-    if file_input is None or len(file_input) == 0:
+    # Extract file value from Event object
+    # event.new contains the new value, event.obj is the widget
+    if event is None:
+        status_pane.object = "⚠️ Please upload a CSV file."
+        dashboard_pane.objects = []
+        return
+    
+    # Get the actual file value from the event
+    if hasattr(event, 'new'):
+        file_input = event.new
+    elif hasattr(event, 'obj') and hasattr(event.obj, 'value'):
+        file_input = event.obj.value
+    else:
+        # Fallback: treat event as the value directly (for backwards compatibility)
+        file_input = event
+    
+    if file_input is None or (hasattr(file_input, '__len__') and len(file_input) == 0):
         status_pane.object = "⚠️ Please upload a CSV file."
         dashboard_pane.objects = []
         return

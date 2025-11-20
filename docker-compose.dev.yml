@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   tabpfn-dev:
     build:
@@ -13,13 +11,14 @@ services:
       - .:/app
       # Mount logs directory for easy access
       - ./logs:/app/logs
-    env_file:
-      - .env
     environment:
       - PYTHONUNBUFFERED=1
       - ENV=development
-      # HF_TOKEN will be loaded from .env file if it exists
-      # If not set, TabPFN will fall back to statistical methods
+      # HF_TOKEN will be passed from host environment if set
+      # Use: $env:HF_TOKEN="your_token"; docker-compose -f docker-compose.dev.yml up
+      # Or use: .\dev.ps1 start (which loads .env automatically)
+      # If not set, TabPFN will fall back to statistical methods (still works!)
+      - HF_TOKEN=${HF_TOKEN:-}
     command: panel serve app.py --address 0.0.0.0 --port 5006 --allow-websocket-origin=* --show
     restart: unless-stopped
 

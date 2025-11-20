@@ -11,8 +11,29 @@ $ContainerName = "tabpfn-data-quality-dev"
 $ImageName = "tabpfn-data-quality"
 $ComposeFile = "docker-compose.dev.yml"
 
+function Load-EnvFile {
+    # Load .env file if it exists
+    if (Test-Path .env) {
+        Write-Host "Loading environment variables from .env file..." -ForegroundColor Green
+        Get-Content .env | ForEach-Object {
+            if ($_ -match '^\s*([^#][^=]+)=(.*)$') {
+                $name = $matches[1].Trim()
+                $value = $matches[2].Trim()
+                [Environment]::SetEnvironmentVariable($name, $value, "Process")
+                Write-Host "  Loaded: $name" -ForegroundColor Gray
+            }
+        }
+    } else {
+        Write-Host ".env file not found. TabPFN will use statistical fallback methods." -ForegroundColor Yellow
+        Write-Host "To use TabPFN models, create .env file with: HF_TOKEN=your_token_here" -ForegroundColor Yellow
+    }
+}
+
 function Start-DevContainer {
     Write-Host "Starting development container..." -ForegroundColor Green
+    
+    # Load .env file before starting
+    Load-EnvFile
     
     # Check if container already exists and is running
     $existing = docker ps -a --filter "name=$ContainerName" --format "{{.Names}}"

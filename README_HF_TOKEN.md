@@ -19,11 +19,11 @@ TabPFN models require authentication to download from HuggingFace. This guide sh
 
 ### 3. Set Up Token for Docker
 
-#### Option A: Using .env file (Recommended)
+#### Option A: Using dev.ps1 script (Recommended for Windows)
 
 1. Copy the example file:
-   ```bash
-   cp .env.example .env
+   ```powershell
+   Copy-Item .env.example .env
    ```
 
 2. Edit `.env` and add your token:
@@ -33,11 +33,33 @@ TabPFN models require authentication to download from HuggingFace. This guide sh
 
 3. The `.env` file is already in `.gitignore`, so your token won't be committed.
 
-4. Restart your Docker container:
-   ```bash
-   docker-compose -f docker-compose.dev.yml down
-   docker-compose -f docker-compose.dev.yml up
+4. Use the PowerShell script to start (it automatically loads .env):
+   ```powershell
+   .\dev.ps1 start
    ```
+   
+   Or for other operations:
+   ```powershell
+   .\dev.ps1 stop      # Stop container
+   .\dev.ps1 restart   # Restart container
+   .\dev.ps1 logs      # View logs
+   .\dev.ps1 status    # Check status
+   ```
+
+#### Option B: Using PowerShell environment variable
+
+Set the token as an environment variable before starting:
+
+```powershell
+$env:HF_TOKEN = "hf_your_actual_token_here"
+docker-compose -f docker-compose.dev.yml up
+```
+
+#### Option C: Using docker-compose --env-file
+
+```powershell
+docker-compose --env-file .env -f docker-compose.dev.yml up
+```
 
 #### Option B: Set Environment Variable Directly
 
