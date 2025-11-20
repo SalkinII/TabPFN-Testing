@@ -1,5 +1,10 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
 # Python
-__pycache__/
+__pycache__
 *.py[cod]
 *$py.class
 *.so
@@ -45,10 +50,17 @@ Thumbs.db
 .env
 .env.local
 
-# Data files (optional - uncomment if you don't want to track CSV files)
-*.csv
+# Logs and docs (will be created in container)
+logs/*
+docs/*
+!logs/.gitkeep
+!docs/.gitkeep
 
-# Model files and caches
+# Data files
+*.csv
+data/
+
+# Model files
 *.pkl
 *.h5
 *.hdf5
@@ -57,11 +69,10 @@ Thumbs.db
 *.ckpt
 .cache/
 
-# Logs
-*.log
-logs/
-docs/
+# Documentation
+*.md
+!README.md
 
-#folders
-.cursor/plans/
-/tests/
+# Plan files
+*.plan.md
+

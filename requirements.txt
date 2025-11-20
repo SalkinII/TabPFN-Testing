@@ -1,0 +1,16 @@
+# Core dependencies
+panel>=1.3.0
+pandas>=2.0.0
+numpy>=1.24.0
+
+# TabPFN and extensions
+tabpfn>=6.0.0
+tabpfn-extensions[all]>=0.1.0
+
+# Visualization
+plotly>=5.17.0
+matplotlib>=3.7.0
+
+# Utilities
+python-dateutil>=2.8.0
+

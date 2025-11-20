@@ -1,56 +1,208 @@
-# TabPFN Testing Project
+# TabPFN Data Quality Assessment Dashboard
 
-This repository contains testing and demonstration code for TabPFN, a fast machine learning model for tabular data that requires no hyperparameter tuning.
+A lightweight, containerized Panel-based web application for assessing data quality in clinical medicine CSV files using TabPFN (Prior-Data Fitted Networks).
 
-## Contents
+## Features
 
-- **TabPFN_Demo_Local.ipynb**: Comprehensive Jupyter notebook demonstrating TabPFN capabilities including:
-  - Classification and regression tasks
-  - Text data handling
-  - Unsupervised learning (anomaly detection, data imputation)
-  - Model interpretability (SHAP values, embeddings)
-  - Time series forecasting
-  - Causal inference applications
+- **TabPFN-Based Quality Assessment**: Uses TabPFN's unsupervised learning capabilities for outlier detection, anomaly detection, and missing value pattern analysis
+- **Clinical Quality Checks**: Validates clinical data for impossible values, temporal inconsistencies, referential integrity, and clinical plausibility
+- **Interactive Visualizations**: Real-time quality metrics with pragmatic, understandable visualizations
+- **Comprehensive Scoring**: Overall and component-level quality scores (0-100 scale)
+- **Actionable Recommendations**: Provides specific recommendations for data quality improvements
+- **Lightweight Container**: Easy deployment with Docker
 
-- **csv1k/**: Dataset folder containing sample CSV files for testing
-- **csvlate/**: Additional dataset folder with CSV files
+## Quick Start
 
-## Getting Started
-
-### Installation
-
-Install the required dependencies:
+### Using Docker (Recommended)
 
 ```bash
-pip install tabpfn tabpfn-client tabpfn-extensions[all]
+# Build the container
+docker build -t tabpfn-data-quality .
+
+# Run the container
+docker run -p 5006:5006 tabpfn-data-quality
 ```
 
-For additional features:
+Then open your browser to `http://localhost:5006`
+
+### Iterative Development (No Rebuilds Required)
+
+For faster development cycles without rebuilding the container:
+
+**Using PowerShell Helper Script (Recommended):**
+
+```powershell
+# Start development container with volume mounts
+.\dev.ps1 start
+
+# View logs in real-time
+.\dev.ps1 logs
+
+# Check container status
+.\dev.ps1 status
+
+# Stop container
+.\dev.ps1 stop
+
+# Restart container
+.\dev.ps1 restart
+
+# Clean old log files (older than 7 days)
+.\dev.ps1 clean
+```
+
+**Using Docker Compose:**
+
+```powershell
+# Start development container
+docker-compose -f docker-compose.dev.yml up -d
+
+# View logs
+docker-compose -f docker-compose.dev.yml logs -f
+
+# Stop container
+docker-compose -f docker-compose.dev.yml down
+```
+
+**Manual Docker Command:**
+
+```powershell
+# Run with volume mounts (code changes reflect immediately)
+docker run -p 5006:5006 -v ${PWD}:/app -v ${PWD}/logs:/app/logs tabpfn-data-quality
+```
+
+**Benefits:**
+- Code changes reflect immediately via volume mounts
+- Logs accessible from host in `logs/dev/` folder
+- Faster iteration - edit code locally, see changes instantly
+- Structured logging with timestamps and context
+
+### Local Development
+
 ```bash
-pip install tabpfn-time-series  # For time series forecasting
-pip install econml  # For causal inference
+# Install dependencies
+pip install -r requirements.txt
+
+# Run the application
+panel serve app.py --show
 ```
 
-### Usage
+## Usage
 
-Open `TabPFN_Demo_Local.ipynb` in Jupyter Notebook or JupyterLab to explore the examples.
+1. **Upload CSV File**: Use the file upload widget in the sidebar to upload your clinical data CSV file
+2. **Review Assessment**: The dashboard will automatically assess data quality and display:
+   - Overall quality score (0-100)
+   - Summary cards with key metrics
+   - Missing values analysis
+   - Outlier detection results
+   - Anomaly scores
+   - Column-level quality metrics
+   - Clinical quality checks
+   - Actionable recommendations
 
-## Features Demonstrated
+## Project Structure
 
-- **Classification**: Parkinson's Disease prediction
-- **Regression**: Boston Housing price prediction
-- **Text Data**: Native text handling capabilities
-- **Unsupervised Learning**: Data generation, outlier detection, missing value imputation
-- **Interpretability**: SHAP values, feature importance, embeddings visualization
-- **Time Series**: Forecasting with TabPFN
-- **Causal Inference**: CATE estimation using TabPFN as base model
+```
+.
+├── app.py                    # Main Panel application
+├── data_quality.py           # TabPFN-based quality assessment
+├── visualizations.py         # Panel visualization components
+├── clinical_quality.py       # Clinical-specific quality checks
+├── corruption_framework.py   # Data corruption utilities (for testing)
+├── utils.py                  # Helper functions
+├── requirements.txt          # Python dependencies
+├── Dockerfile                # Container definition
+├── .dockerignore             # Docker ignore file
+├── LICENSE                   # Project license
+└── README.md                 # This file
+```
+
+## Data Quality Metrics
+
+### Overall Quality Score (0-100)
+Composite score based on:
+- Missing values (30% weight)
+- Outliers (30% weight)
+- Anomalies (20% weight)
+- Consistency (20% weight)
+
+### Component Scores
+- **Missing Score**: Penalizes missing values
+- **Outlier Score**: Penalizes statistical outliers
+- **Anomaly Score**: Penalizes anomalous records
+- **Consistency Score**: Penalizes duplicate rows and data inconsistencies
+
+### Clinical Quality Checks
+- Impossible values (e.g., age > 150)
+- Temporal inconsistencies (e.g., discharge before admission)
+- Referential integrity (missing/duplicate IDs)
+- Clinical plausibility (e.g., BMI calculations)
+
+## Logging
+
+All operations are logged to the `logs/` directory (gitignored):
+- **Development logs**: `logs/dev/` - Application startup, errors, file uploads, and performance metrics
+- **Assessment logs**: `logs/` - Quality assessment runs and results
+- **Corruption logs**: `logs/` - Data corruption operations (for testing)
+
+Logs are stored as JSON files with timestamps for easy parsing and analysis. Development logs are automatically created when running in development mode.
+
+## Testing with Corrupted Data
+
+The `corruption_framework.py` module provides utilities for testing TabPFN's detection capabilities:
+
+```python
+from corruption_framework import DataCorruptor
+
+corruptor = DataCorruptor(random_seed=42)
+
+# Introduce missing values
+corrupted_df, details = corruptor.introduce_missing_values(df, missing_percentage=10.0)
+
+# Introduce outliers
+corrupted_df, details = corruptor.introduce_outliers(df, outlier_percentage=5.0)
+
+# Apply maximum corruption (all types)
+corrupted_df, details = corruptor.apply_maximum_corruption(df)
+```
 
 ## License
 
-[Add your license here]
+This project is licensed under the BSD 3-Clause License. See LICENSE file for details.
+
+### Third-Party Licenses
+
+- **Panel**: BSD-3-Clause License (https://github.com/holoviz/panel)
+- **TabPFN**: TABPFN-2.5 License v1.0 (https://docs.priorlabs.ai/models)
+  - Note: For production/commercial use, a commercial license is required from PriorLabs
+
+## Documentation
+
+Additional documentation is available in the `docs/` folder (gitignored):
+- `TabPFN_DataQuality_Factors.md`: Crucial factors about TabPFN's data quality aspects
+- `Pipeline_Workflow.md`: Operational workflow documentation
+- `User_Guide.md`: Detailed user guide
+- `Findings_Summary.md`: Key findings from experiments
+
+## Dependencies
+
+- Panel >= 1.3.0 (BSD-3-Clause)
+- TabPFN >= 6.0.0 (TABPFN-2.5 License)
+- Pandas >= 2.0.0
+- NumPy >= 1.24.0
+- Plotly >= 5.17.0
+- Matplotlib >= 3.7.0
+
+## Contributing
+
+Contributions are welcome! Please ensure that:
+1. All code follows PEP 8 style guidelines
+2. Tests are added for new features
+3. Documentation is updated accordingly
+4. License compliance is maintained
 
 ## References
 
-- TabPFN: [GitHub Repository](https://github.com/PriorLabs/tabpfn)
-- TabPFN Client: [GitHub Repository](https://github.com/automl/tabpfn-client)
-
+- TabPFN: https://github.com/PriorLabs/tabpfn
+- Panel: https://github.com/holoviz/panel
+- TabPFN Documentation: https://docs.priorlabs.ai/models

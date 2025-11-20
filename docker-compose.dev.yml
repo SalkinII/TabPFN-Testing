@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  tabpfn-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: tabpfn-data-quality-dev
+    ports:
+      - "5006:5006"
+    volumes:
+      # Mount local code directory for live updates
+      - .:/app
+      # Mount logs directory for easy access
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - ENV=development
+    command: panel serve app.py --address 0.0.0.0 --port 5006 --allow-websocket-origin=* --show
+    restart: unless-stopped
+
