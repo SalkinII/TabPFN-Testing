@@ -29,6 +29,15 @@ pn.extension('plotly', 'tabulator', sizing_mode='stretch_width')
 # Initialize components
 try:
     log_dev_event('startup', 'Initializing TabPFN Data Quality Assessment Dashboard')
+    
+    # Set HuggingFace token if available (for TabPFN model authentication)
+    hf_token = os.environ.get('HF_TOKEN')
+    if hf_token:
+        os.environ['HF_TOKEN'] = hf_token
+        log_dev_event('startup', 'HuggingFace token found - TabPFN models will authenticate')
+    else:
+        log_dev_event('startup', 'No HuggingFace token found - TabPFN will use statistical fallback methods')
+    
     assessor = DataQualityAssessor()
     clinical_checker = ClinicalQualityChecker()
     log_dev_event('startup', 'Components initialized successfully')
