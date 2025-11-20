@@ -109,6 +109,7 @@ panel serve app.py --show
 ├── visualizations.py         # Panel visualization components
 ├── clinical_quality.py       # Clinical-specific quality checks
 ├── corruption_framework.py   # Data corruption utilities (for testing)
+├── corrupt_data.py           # Standalone CLI script for batch corruption
 ├── utils.py                  # Helper functions
 ├── requirements.txt          # Python dependencies
 ├── Dockerfile                # Container definition
@@ -149,7 +150,45 @@ Logs are stored as JSON files with timestamps for easy parsing and analysis. Dev
 
 ## Testing with Corrupted Data
 
-The `corruption_framework.py` module provides utilities for testing TabPFN's detection capabilities:
+The corruption framework provides utilities for testing TabPFN's detection capabilities. Use the standalone `corrupt_data.py` script to corrupt CSV files for testing.
+
+### Quick Start
+
+```bash
+# Corrupt all files in csvlate/ with 10% missing values
+docker exec <container> python corrupt_data.py --source csvlate --corruption missing --level 10
+
+# Corrupt single file with maximum corruption
+docker exec <container> python corrupt_data.py --source csvlate/patients.csv --corruption maximum
+
+# Corrupt with outliers at 5%
+docker exec <container> python corrupt_data.py --source csv1k --corruption outliers --level 5
+```
+
+### Corruption Types
+
+- `missing`: Introduce missing values (NaN)
+- `outliers`: Introduce statistical outliers
+- `duplicates`: Introduce duplicate rows
+- `inconsistencies`: Introduce format inconsistencies
+- `maximum`: Apply all corruption types at maximum levels
+
+### Output
+
+Corrupted files are saved to the `corrupt/` directory, preserving the folder structure:
+- `csvlate/patients.csv` → `corrupt/csvlate/patients.csv`
+- `csv1k/encounters.csv` → `corrupt/csv1k/encounters.csv`
+
+### Documentation
+
+For detailed usage instructions, see:
+- **[Corruption Framework Guide](docs/Corruption_Framework_Guide.md)**: Complete API reference and usage examples
+- **[Testing Guide](docs/Testing_Guide.md)**: Step-by-step testing workflows
+- **[Logging Structure](docs/Logging_Structure.md)**: Understanding log files
+
+### Python API
+
+You can also use the corruption framework programmatically:
 
 ```python
 from corruption_framework import DataCorruptor
@@ -178,11 +217,20 @@ This project is licensed under the BSD 3-Clause License. See LICENSE file for de
 
 ## Documentation
 
-Additional documentation is available in the `docs/` folder (gitignored):
-- `TabPFN_DataQuality_Factors.md`: Crucial factors about TabPFN's data quality aspects
-- `Pipeline_Workflow.md`: Operational workflow documentation
-- `User_Guide.md`: Detailed user guide
-- `Findings_Summary.md`: Key findings from experiments
+Comprehensive documentation is available in the `docs/` folder:
+
+### User Documentation
+- **[User Guide](docs/User_Guide.md)**: How to use the Panel dashboard application
+- **[Pipeline Workflow](docs/Pipeline_Workflow.md)**: Operational workflow documentation
+
+### Technical Documentation
+- **[TabPFN Data Quality Factors](docs/TabPFN_DataQuality_Factors.md)**: Crucial factors about TabPFN's data quality aspects
+- **[Findings Summary](docs/Findings_Summary.md)**: Key findings from experiments
+
+### Testing & Corruption
+- **[Corruption Framework Guide](docs/Corruption_Framework_Guide.md)**: Complete guide to using the corruption framework
+- **[Testing Guide](docs/Testing_Guide.md)**: Step-by-step testing workflows and validation
+- **[Logging Structure](docs/Logging_Structure.md)**: Understanding log files and log analysis
 
 ## Dependencies
 

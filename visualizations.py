@@ -13,7 +13,7 @@ from utils import format_quality_score
 
 def create_quality_score_card(score: float, title: str = "Overall Quality Score") -> pn.pane.HTML:
     """
-    Create a quality score card with color coding.
+    Create a quality score card with color coding and modern styling.
     
     Args:
         score: Quality score (0-100)
@@ -24,22 +24,31 @@ def create_quality_score_card(score: float, title: str = "Overall Quality Score"
     """
     formatted_score, color_class = format_quality_score(score)
     
+    # Modern color palette
     color_map = {
-        'success': '#28a745',  # Green
-        'warning': '#ffc107',  # Yellow
-        'info': '#17a2b8',    # Blue
-        'danger': '#dc3545'   # Red
+        'success': '#10b981',  # Modern green
+        'warning': '#f59e0b',  # Amber
+        'info': '#2563eb',     # Professional blue
+        'danger': '#ef4444'    # Modern red
     }
     
-    color = color_map.get(color_class, '#6c757d')
+    bg_color_map = {
+        'success': '#d1fae5',  # Light green background
+        'warning': '#fef3c7',  # Light amber background
+        'info': '#dbeafe',     # Light blue background
+        'danger': '#fee2e2'    # Light red background
+    }
+    
+    color = color_map.get(color_class, '#6b7280')
+    bg_color = bg_color_map.get(color_class, '#f3f4f6')
     
     html = f"""
-    <div style="text-align: center; padding: 20px; background: {color}20; border-radius: 8px; border: 2px solid {color};">
-        <h3 style="margin: 0 0 10px 0; color: #333;">{title}</h3>
-        <div style="font-size: 48px; font-weight: bold; color: {color}; margin: 10px 0;">
+    <div style="text-align: center; padding: 32px 24px; background: {bg_color}; border-radius: 12px; border: 2px solid {color}; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s;">
+        <h3 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600; letter-spacing: -0.025em;">{title}</h3>
+        <div style="font-size: 56px; font-weight: 700; color: {color}; margin: 16px 0; letter-spacing: -0.05em;">
             {formatted_score}
         </div>
-        <div style="font-size: 14px; color: #666;">out of 100</div>
+        <div style="font-size: 14px; color: #6b7280; font-weight: 500;">out of 100</div>
     </div>
     """
     
@@ -98,7 +107,7 @@ def create_summary_cards(stats: Dict) -> pn.Row:
 
 def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
     """
-    Create a bar chart showing missing values per column.
+    Create a bar chart showing missing values per column with modern styling.
     
     Args:
         missing_stats: Dictionary with missing value statistics
@@ -109,34 +118,65 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
     column_stats = missing_stats.get('column_missing_stats', {})
     
     if not column_stats:
-        # Empty chart
+        # Empty chart with modern styling
         fig = go.Figure()
         fig.add_annotation(
             text="No missing values detected",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="#6b7280")
+        )
+        fig.update_layout(
+            plot_bgcolor='#f9fafb',
+            paper_bgcolor='#ffffff',
+            height=400
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
     columns = list(column_stats.keys())
     percentages = [column_stats[col]['percentage'] for col in columns]
     
+    # Modern color scheme
+    colors = ['#ef4444' if p > 20 else '#f59e0b' if p > 10 else '#10b981' for p in percentages]
+    
     fig = go.Figure(data=[
         go.Bar(
             x=columns,
             y=percentages,
-            marker_color=['#dc3545' if p > 20 else '#ffc107' if p > 10 else '#28a745' for p in percentages],
+            marker_color=colors,
             text=[f"{p:.1f}%" for p in percentages],
-            textposition='outside'
+            textposition='outside',
+            textfont=dict(size=11, color="#374151"),
+            marker_line_color='#ffffff',
+            marker_line_width=1.5,
+            opacity=0.9
         )
     ])
     
     fig.update_layout(
-        title='Missing Values by Column',
-        xaxis_title='Column',
-        yaxis_title='Missing Percentage (%)',
+        title=dict(
+            text='Missing Values by Column',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        xaxis=dict(
+            title='Column',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
+        yaxis=dict(
+            title='Missing Percentage (%)',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
         height=400,
-        showlegend=False
+        showlegend=False,
+        plot_bgcolor='#f9fafb',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=20, r=20, t=50, b=50)
     )
     
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -144,7 +184,7 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
 
 def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Plotly:
     """
-    Create a histogram showing outlier score distribution.
+    Create a histogram showing outlier score distribution with modern styling.
     
     Args:
         outlier_scores: List of outlier scores
@@ -157,7 +197,13 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
         fig.add_annotation(
             text="No outlier scores available",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="#6b7280")
+        )
+        fig.update_layout(
+            plot_bgcolor='#f9fafb',
+            paper_bgcolor='#ffffff',
+            height=400
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -165,26 +211,50 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
         go.Histogram(
             x=outlier_scores,
             nbinsx=50,
-            marker_color='#17a2b8',
-            opacity=0.7
+            marker_color='#2563eb',
+            marker_line_color='#ffffff',
+            marker_line_width=1,
+            opacity=0.8
         )
     ])
     
-    # Add threshold line
+    # Add threshold line with modern styling
     threshold = np.percentile(outlier_scores, 95)
     fig.add_vline(
         x=threshold,
         line_dash="dash",
-        line_color="red",
-        annotation_text=f"95th percentile ({threshold:.2f})"
+        line_color="#ef4444",
+        line_width=2,
+        annotation_text=f"95th percentile ({threshold:.2f})",
+        annotation_position="top",
+        annotation_font_size=11,
+        annotation_font_color="#ef4444"
     )
     
     fig.update_layout(
-        title='Outlier Score Distribution',
-        xaxis_title='Outlier Score',
-        yaxis_title='Frequency',
+        title=dict(
+            text='Outlier Score Distribution',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        xaxis=dict(
+            title='Outlier Score',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
+        yaxis=dict(
+            title='Frequency',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
         height=400,
-        showlegend=False
+        showlegend=False,
+        plot_bgcolor='#f9fafb',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=20, r=20, t=50, b=50)
     )
     
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -192,7 +262,7 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
 
 def create_quality_breakdown_chart(component_scores: Dict) -> pn.pane.Plotly:
     """
-    Create a radar/spider chart showing component quality scores.
+    Create a radar/spider chart showing component quality scores with modern styling.
     
     Args:
         component_scores: Dictionary with component scores
@@ -210,18 +280,33 @@ def create_quality_breakdown_chart(component_scores: Dict) -> pn.pane.Plotly:
         theta=categories,
         fill='toself',
         name='Quality Scores',
-        line_color='#17a2b8'
+        line_color='#2563eb',
+        fillcolor='rgba(37, 99, 235, 0.2)',
+        line_width=3,
+        marker=dict(size=8, color='#2563eb')
     ))
     
     fig.update_layout(
         polar=dict(
             radialaxis=dict(
                 visible=True,
-                range=[0, 100]
-            )),
+                range=[0, 100],
+                tickfont=dict(size=11, color="#6b7280"),
+                gridcolor='#e5e7eb',
+                linecolor='#d1d5db'
+            ),
+            angularaxis=dict(
+                tickfont=dict(size=12, color="#374151")
+            )
+        ),
         showlegend=False,
-        title='Quality Score Breakdown',
-        height=400
+        title=dict(
+            text='Quality Score Breakdown',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        height=400,
+        paper_bgcolor='#ffffff',
+        plot_bgcolor='#f9fafb'
     )
     
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -264,7 +349,7 @@ def create_column_quality_table(column_quality: Dict[str, Dict]) -> pn.widgets.T
 
 def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn.pane.Plotly:
     """
-    Create a heatmap showing anomaly patterns.
+    Create a heatmap showing anomaly patterns with modern styling.
     
     Args:
         anomaly_scores: List of anomaly scores
@@ -278,7 +363,13 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
         fig.add_annotation(
             text="No anomaly scores available",
             xref="paper", yref="paper",
-            x=0.5, y=0.5, showarrow=False
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="#6b7280")
+        )
+        fig.update_layout(
+            plot_bgcolor='#f9fafb',
+            paper_bgcolor='#ffffff',
+            height=400
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -299,16 +390,36 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
     
     fig = go.Figure(data=go.Heatmap(
         z=heatmap_data,
-        colorscale='RdYlGn_r',  # Red-Yellow-Green reversed
+        colorscale=[[0, '#10b981'], [0.5, '#f59e0b'], [1, '#ef4444']],  # Green-Yellow-Red
         showscale=True,
-        colorbar=dict(title="Anomaly Score")
+        colorbar=dict(
+            title=dict(text="Anomaly Score", font=dict(size=12, color="#6b7280")),
+            tickfont=dict(size=10, color="#6b7280")
+        ),
+        hovertemplate='Row: %{y}<br>Column: %{x}<br>Score: %{z:.2f}<extra></extra>'
     ))
     
     fig.update_layout(
-        title='Anomaly Score Heatmap (First 100 Records)',
-        xaxis_title='Column Group',
-        yaxis_title='Row',
-        height=400
+        title=dict(
+            text='Anomaly Score Heatmap (First 100 Records)',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        xaxis=dict(
+            title='Column Group',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb'
+        ),
+        yaxis=dict(
+            title='Row',
+            titlefont=dict(size=13, color="#6b7280"),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb'
+        ),
+        height=400,
+        plot_bgcolor='#f9fafb',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=20, r=20, t=50, b=50)
     )
     
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -316,7 +427,7 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
 
 def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     """
-    Create a panel with actionable recommendations.
+    Create a panel with actionable recommendations and modern styling.
     
     Args:
         quality_results: Dictionary with quality assessment results
@@ -329,33 +440,43 @@ def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     overall_score = quality_results.get('quality_score', {}).get('overall_score', 100)
     
     if overall_score < 60:
-        recommendations.append("⚠️ <strong>Critical:</strong> Data quality is below acceptable thresholds. Review and clean data before use.")
+        recommendations.append(("Critical", "Data quality is below acceptable thresholds. Review and clean data before use.", "#ef4444"))
     
     missing_assessment = quality_results.get('missing_assessment', {})
     missing_pct = missing_assessment.get('missing_percentage', 0)
     if missing_pct > 20:
-        recommendations.append(f"📊 <strong>Missing Values:</strong> {missing_pct:.1f}% of values are missing. Consider imputation or data collection review.")
+        recommendations.append(("Missing Values", f"{missing_pct:.1f}% of values are missing. Consider imputation or data collection review.", "#f59e0b"))
     elif missing_pct > 10:
-        recommendations.append(f"📊 <strong>Missing Values:</strong> {missing_pct:.1f}% missing values detected. Review patterns.")
+        recommendations.append(("Missing Values", f"{missing_pct:.1f}% missing values detected. Review patterns.", "#2563eb"))
     
     outlier_results = quality_results.get('outlier_results', {})
     outlier_count = outlier_results.get('outlier_count', 0)
     if outlier_count > 50:
-        recommendations.append(f"🔍 <strong>Outliers:</strong> {outlier_count} outliers detected. Review for data entry errors or valid extreme values.")
+        recommendations.append(("Outliers", f"{outlier_count} outliers detected. Review for data entry errors or valid extreme values.", "#f59e0b"))
     
     clinical_checks = quality_results.get('clinical_checks', {})
     if clinical_checks.get('has_issues', False):
         total_issues = clinical_checks.get('total_issues', 0)
-        recommendations.append(f"🏥 <strong>Clinical Issues:</strong> {total_issues} clinical quality issues found. Review for impossible values and inconsistencies.")
+        recommendations.append(("Clinical Issues", f"{total_issues} clinical quality issues found. Review for impossible values and inconsistencies.", "#ef4444"))
     
     if not recommendations:
-        recommendations.append("✅ <strong>Good:</strong> Data quality appears acceptable. Continue monitoring.")
+        recommendations.append(("Good", "Data quality appears acceptable. Continue monitoring.", "#10b981"))
+    
+    # Build recommendation items with modern styling
+    items_html = ""
+    for title, message, color in recommendations:
+        items_html += f"""
+        <li style="margin: 12px 0; padding: 12px; background: #ffffff; border-radius: 8px; border-left: 4px solid {color}; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+            <strong style="color: {color}; font-size: 14px; display: block; margin-bottom: 4px;">{title}</strong>
+            <span style="color: #374151; font-size: 13px; line-height: 1.5;">{message}</span>
+        </li>
+        """
     
     html = f"""
-    <div style="padding: 15px; background: #f8f9fa; border-radius: 8px; border-left: 4px solid #17a2b8;">
-        <h4 style="margin-top: 0;">Recommendations</h4>
-        <ul style="margin: 0; padding-left: 20px;">
-            {''.join([f'<li style="margin: 8px 0;">{rec}</li>' for rec in recommendations])}
+    <div style="padding: 24px; background: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+        <h4 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600;">Recommendations</h4>
+        <ul style="margin: 0; padding-left: 0; list-style: none;">
+            {items_html}
         </ul>
     </div>
     """

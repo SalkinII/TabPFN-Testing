@@ -62,6 +62,9 @@ Thumbs.db
 logs/
 docs/
 
+# Corrupted data
+corrupt/
+
 #folders
 .cursor/plans/
 /tests/

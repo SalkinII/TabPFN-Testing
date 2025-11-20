@@ -385,50 +385,56 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     
     clinical_pane = pn.pane.HTML(clinical_issues_html, sizing_mode='stretch_width') if clinical_issues_html else pn.pane.HTML("", height=0)
     
-    # Layout
+    # Layout with improved spacing
     dashboard = pn.Column(
-        pn.pane.Markdown("# 📊 Data Quality Assessment Dashboard", sizing_mode='stretch_width'),
+        pn.pane.Markdown(
+            "# 📊 Data Quality Assessment Dashboard", 
+            sizing_mode='stretch_width',
+            style={'font-size': '28px', 'font-weight': '700', 'color': '#1f2937', 'margin-bottom': '8px'}
+        ),
+        pn.Spacer(height=8),
         score_card,
-        pn.Spacer(height=20),
+        pn.Spacer(height=24),
         summary_cards,
-        pn.Spacer(height=20),
+        pn.Spacer(height=24),
         pn.Row(
             pn.Column(
-                pn.pane.Markdown("### Missing Values Analysis"),
+                pn.pane.Markdown("### Missing Values Analysis", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
                 missing_chart,
                 sizing_mode='stretch_width'
             ),
             pn.Column(
-                pn.pane.Markdown("### Quality Score Breakdown"),
+                pn.pane.Markdown("### Quality Score Breakdown", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
                 breakdown_chart,
                 sizing_mode='stretch_width'
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=20),
+        pn.Spacer(height=24),
         pn.Row(
             pn.Column(
-                pn.pane.Markdown("### Outlier Distribution"),
+                pn.pane.Markdown("### Outlier Distribution", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
                 outlier_chart,
                 sizing_mode='stretch_width'
             ),
             pn.Column(
-                pn.pane.Markdown("### Anomaly Heatmap"),
+                pn.pane.Markdown("### Anomaly Heatmap", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
                 anomaly_heatmap,
                 sizing_mode='stretch_width'
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=20),
-        pn.pane.Markdown("### Column-Level Quality Metrics"),
+        pn.Spacer(height=24),
+        pn.pane.Markdown("### Column-Level Quality Metrics", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
         column_table,
-        pn.Spacer(height=20),
+        pn.Spacer(height=24),
         recommendations,
         clinical_pane,
-        pn.Spacer(height=20),
+        pn.Spacer(height=24),
         export_panel,
         sizing_mode='stretch_width',
-        scroll=True
+        scroll=True,
+        margin=(0, 20, 20, 20)
     )
     
     return dashboard
@@ -460,7 +466,7 @@ def process_file(event):
         file_input = event
     
     if file_input is None or (hasattr(file_input, '__len__') and len(file_input) == 0):
-        status_pane.object = "⚠️ Please upload a CSV file."
+        status_pane.object = '<div class="status-message status-warning">⚠️ Please upload a CSV file.</div>'
         dashboard_pane.objects = []
         return
     
@@ -468,19 +474,19 @@ def process_file(event):
     df = load_csv_file(file_input)
     
     if df is None:
-        status_pane.object = "❌ Error loading CSV file. Please check the file format."
+        status_pane.object = '<div class="status-message status-error">❌ Error loading CSV file. Please check the file format.</div>'
         dashboard_pane.objects = []
         return
     
     # Validate DataFrame is not empty
     if len(df) == 0:
-        status_pane.object = "❌ Error: CSV file is empty (0 rows). Please upload a file with data."
+        status_pane.object = '<div class="status-message status-error">❌ Error: CSV file is empty (0 rows). Please upload a file with data.</div>'
         dashboard_pane.objects = []
         log_error(Exception("Empty DataFrame"), {'context': 'process_file', 'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)})
         return
     
     if len(df.columns) == 0:
-        status_pane.object = "❌ Error: CSV file has no columns. Please check the file format."
+        status_pane.object = '<div class="status-message status-error">❌ Error: CSV file has no columns. Please check the file format.</div>'
         dashboard_pane.objects = []
         log_error(Exception("No columns"), {'context': 'process_file', 'file_rows': len(df)})
         return
@@ -488,19 +494,24 @@ def process_file(event):
     current_df = df
     
     # Update status
-    status_pane.object = f"✅ File loaded successfully! {len(df)} rows, {len(df.columns)} columns. Assessing data quality..."
+    status_pane.object = f'<div class="status-message status-info">✅ File loaded successfully! {len(df)} rows, {len(df.columns)} columns. Assessing data quality...</div>'
     
     # Create dashboard
     try:
         log_dev_event('file_upload', f"Processing file: {len(df)} rows, {len(df.columns)} columns")
         dashboard = create_dashboard(df)
         dashboard_pane.objects = [dashboard]
-        status_pane.object = f"✅ Assessment complete! Overall quality score: {quality_results.get('quality_score', {}).get('overall_score', 0):.1f}/100"
-        log_dev_event('assessment_complete', f"Quality score: {quality_results.get('quality_score', {}).get('overall_score', 0):.1f}/100")
+        score = quality_results.get('quality_score', {}).get('overall_score', 0)
+        status_class = 'status-success' if score >= 70 else 'status-warning' if score >= 60 else 'status-error'
+        status_pane.object = f'<div class="status-message {status_class}">✅ Assessment complete! Overall quality score: {score:.1f}/100</div>'
+        log_dev_event('assessment_complete', f"Quality score: {score:.1f}/100")
     except Exception as e:
         log_error(e, {'context': 'dashboard_creation', 'file_rows': len(df) if df is not None else 0})
-        status_pane.object = f"❌ Error during assessment: {str(e)}"
-        error_html = pn.pane.HTML(f"<div style='padding: 20px; color: red;'><h3>Error</h3><p>{str(e)}</p></div>", sizing_mode='stretch_width')
+        status_pane.object = f'<div class="status-message status-error">❌ Error during assessment: {str(e)}</div>'
+        error_html = pn.pane.HTML(
+            f'<div style="padding: 24px; background: #fee2e2; border-radius: 12px; border-left: 4px solid #ef4444; color: #991b1b;"><h3 style="margin-top: 0;">Error</h3><p>{str(e)}</p></div>', 
+            sizing_mode='stretch_width'
+        )
         dashboard_pane.objects = [error_html]
 
 
@@ -514,27 +525,100 @@ file_input = pn.widgets.FileInput(
 
 file_input.param.watch(process_file, 'value')
 
-status_pane = pn.pane.HTML("📁 Please upload a CSV file to begin assessment.", sizing_mode='stretch_width')
+status_pane = pn.pane.HTML(
+    '<div class="status-message status-info">📁 Please upload a CSV file to begin assessment.</div>', 
+    sizing_mode='stretch_width'
+)
 dashboard_pane = pn.Column(sizing_mode='stretch_width', scroll=True)
 
-# Main layout
+# Custom CSS for modern styling
+custom_css = """
+<style>
+    :root {
+        --primary-color: #2563eb;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-color: #f9fafb;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+    }
+    
+    .bk-panel-widget {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    }
+    
+    .dashboard-header {
+        margin-bottom: 24px;
+    }
+    
+    .status-message {
+        padding: 12px 16px;
+        border-radius: 8px;
+        margin: 12px 0;
+        font-size: 14px;
+        line-height: 1.5;
+    }
+    
+    .status-success {
+        background-color: #d1fae5;
+        color: #065f46;
+        border-left: 4px solid var(--success-color);
+    }
+    
+    .status-warning {
+        background-color: #fef3c7;
+        color: #92400e;
+        border-left: 4px solid var(--warning-color);
+    }
+    
+    .status-error {
+        background-color: #fee2e2;
+        color: #991b1b;
+        border-left: 4px solid var(--danger-color);
+    }
+    
+    .status-info {
+        background-color: #dbeafe;
+        color: #1e40af;
+        border-left: 4px solid var(--primary-color);
+    }
+</style>
+"""
+
+# Main layout with modern styling
 app = pn.template.FastListTemplate(
     title="TabPFN Data Quality Assessment",
     sidebar=[
+        pn.pane.HTML(custom_css),
         pn.pane.Markdown("""
-        ## Instructions
+        ## 📊 Instructions
         
         1. Upload a CSV file using the file input below
         2. Wait for the assessment to complete
         3. Review the quality metrics and recommendations
         
-        ## Features
+        ---
+        
+        ## ✨ Features
         
         - **Outlier Detection**: Uses TabPFN to detect statistical outliers
         - **Missing Value Analysis**: Analyzes missing value patterns
         - **Anomaly Detection**: Identifies anomalous records
         - **Clinical Quality Checks**: Validates clinical data plausibility
         - **Quality Scoring**: Overall and component-level quality scores
+        
+        ---
+        
+        ## 🧪 Testing
+        
+        To test with corrupted data, use the `corrupt_data.py` script in Docker:
+        
+        ```bash
+        docker exec <container> python corrupt_data.py --source csvlate --corruption missing --level 10
+        ```
+        
+        See `docs/Corruption_Framework_Guide.md` for details.
         """),
         file_input,
         status_pane
@@ -542,8 +626,10 @@ app = pn.template.FastListTemplate(
     main=[
         dashboard_pane
     ],
-    header_background='#17a2b8',
-    accent='#17a2b8'
+    header_background='#2563eb',
+    accent='#2563eb',
+    header_color='white',
+    sidebar_width=320
 )
 
 # Make servable
