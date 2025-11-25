@@ -85,9 +85,9 @@ You should see:
    - Better quality scoring
 
 If the token is not set or invalid, the application will automatically fall back to statistical methods and still function correctly.
-
+*************************************************************
 ## Troubleshooting
-
+*************************************************************
 ### Token Not Working
 
 1. **Check token format**: Should start with `hf_`
