@@ -67,3 +67,6 @@ corrupt/
 
 #folders
 .cursor/plans/
+
+#local setup
+LOCAL_SETUP.md

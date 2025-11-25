@@ -61,8 +61,12 @@ class DataQualityAssessor:
             'total_cells': df.size,
             'missing_percentage': float(df.isnull().sum().sum() / df.size * 100),
             'columns_with_missing': [],
-            'column_missing_stats': {}
+            'column_missing_stats': {},
+            'missing_value_locations': []  # List of (row_index, column) tuples
         }
+        
+        # Track original indices
+        original_indices = df.index.tolist()
         
         for col in df.columns:
             missing_count = int(df[col].isnull().sum())
@@ -74,6 +78,17 @@ class DataQualityAssessor:
                     'count': missing_count,
                     'percentage': missing_pct
                 }
+                
+                # Track which rows have missing values in this column
+                missing_mask = df[col].isnull()
+                for idx, is_missing in enumerate(missing_mask):
+                    if is_missing:
+                        row_idx = original_indices[idx] if idx < len(original_indices) else idx
+                        results['missing_value_locations'].append({
+                            'row_index': int(row_idx),
+                            'column': col,
+                            'value_type': 'missing'
+                        })
         
         # Assess missing value patterns using TabPFN if available
         if self.unsupervised_model is not None and len(results['columns_with_missing']) > 0:
@@ -134,7 +149,9 @@ class DataQualityAssessor:
             'outlier_scores': [],
             'outlier_flags': [],
             'outlier_count': 0,
-            'method': 'tabpfn_unsupervised'
+            'method': 'tabpfn_unsupervised',
+            'outlier_indices': [],
+            'percentile_ranks': []
         }
         
         if self.unsupervised_model is None:
@@ -154,9 +171,25 @@ class DataQualityAssessor:
                     'error': 'No numeric columns found for outlier detection'
                 }
             
+            # Track original indices before any operations
+            # Create a clean mapping: position -> original index
+            # Reset index to avoid duplicate label issues
+            numeric_df_reset = numeric_df.reset_index(drop=True)
+            # Store original indices as a list (position-based mapping)
+            original_indices = list(numeric_df.index)
+            sampled_indices = None
+            
             # Limit to reasonable size for TabPFN
-            if len(numeric_df) > 1000:
-                numeric_df = numeric_df.sample(n=1000, random_state=self.random_state)
+            if len(numeric_df_reset) > 1000:
+                # Sample from reset DataFrame (has clean 0-based index)
+                sampled_df = numeric_df_reset.sample(n=1000, random_state=self.random_state)
+                # Map sampled positions (0-based) back to original indices
+                sampled_positions = sampled_df.index.tolist()  # These are 0-based positions
+                sampled_indices = [original_indices[pos] for pos in sampled_positions if pos < len(original_indices)]
+                numeric_df = sampled_df.reset_index(drop=True)  # Ensure clean index for tensor conversion
+            else:
+                numeric_df = numeric_df_reset
+                sampled_indices = None  # Use all rows
             
             # Convert to tensor
             X = torch.tensor(numeric_df.values, dtype=torch.float32)
@@ -191,24 +224,78 @@ class DataQualityAssessor:
                 # Fallback to statistical method
                 scores = self._statistical_outlier_detection(numeric_df)
             
-            results['outlier_scores'] = scores.tolist() if isinstance(scores, np.ndarray) else scores
-            results['outlier_flags'] = [score > np.percentile(scores, 95) for score in results['outlier_scores']]
+            scores_list = scores.tolist() if isinstance(scores, np.ndarray) else scores
+            results['outlier_scores'] = scores_list
+            
+            # Calculate percentile ranks
+            percentile_ranks = [100 * (np.sum(np.array(scores_list) <= score) / len(scores_list)) for score in scores_list]
+            results['percentile_ranks'] = percentile_ranks
+            
+            threshold = np.percentile(scores_list, 95)
+            results['outlier_flags'] = [score > threshold for score in scores_list]
             results['outlier_count'] = int(sum(results['outlier_flags']))
             results['outlier_percentage'] = float(results['outlier_count'] / len(results['outlier_flags']) * 100)
+            
+            # Track row indices for outliers
+            results['outlier_indices'] = []
+            # Use sampled indices if we sampled, otherwise use original indices
+            current_indices = sampled_indices if sampled_indices is not None else original_indices
+            for idx, (score, is_outlier) in enumerate(zip(scores_list, results['outlier_flags'])):
+                if is_outlier:
+                    # Ensure we have a valid index
+                    if idx < len(current_indices):
+                        row_idx = current_indices[idx]
+                    else:
+                        # Fallback: use position if mapping fails
+                        row_idx = idx if sampled_indices is None else original_indices[min(idx, len(original_indices) - 1)]
+                    results['outlier_indices'].append({
+                        'row_index': int(row_idx),
+                        'outlier_score': float(score),
+                        'percentile_rank': float(percentile_ranks[idx])
+                    })
             
         except Exception as e:
             # Fallback to statistical method
             numeric_df = df.select_dtypes(include=[np.number])
             if len(numeric_df.columns) > 0:
-                scores = self._statistical_outlier_detection(numeric_df)
-                results['outlier_scores'] = scores.tolist()
-                results['outlier_flags'] = [score > np.percentile(scores, 95) for score in results['outlier_scores']]
+                # Reset index to avoid duplicate label issues
+                numeric_df_reset = numeric_df.reset_index(drop=True)
+                # Store original indices as a list
+                original_indices = list(numeric_df.index)
+                scores = self._statistical_outlier_detection(numeric_df_reset)
+                scores_list = scores.tolist() if isinstance(scores, np.ndarray) else scores
+                results['outlier_scores'] = scores_list
+                
+                # Calculate percentile ranks
+                scores_array = np.array(scores_list)
+                percentile_ranks = [100 * (np.sum(scores_array <= score) / len(scores_array)) for score in scores_list]
+                results['percentile_ranks'] = percentile_ranks
+                
+                threshold = np.percentile(scores_array, 95)
+                results['outlier_flags'] = [score > threshold for score in scores_list]
                 results['outlier_count'] = int(sum(results['outlier_flags']))
                 results['outlier_percentage'] = float(results['outlier_count'] / len(results['outlier_flags']) * 100)
                 results['method'] = 'statistical_fallback'
                 results['error'] = str(e)
+                
+                # Track row indices for outliers
+                results['outlier_indices'] = []
+                for idx, (score, is_outlier) in enumerate(zip(scores_list, results['outlier_flags'])):
+                    if is_outlier:
+                        # Ensure we have a valid index
+                        if idx < len(original_indices):
+                            row_idx = original_indices[idx]
+                        else:
+                            row_idx = idx
+                        results['outlier_indices'].append({
+                            'row_index': int(row_idx),
+                            'outlier_score': float(score),
+                            'percentile_rank': float(percentile_ranks[idx])
+                        })
             else:
                 results['error'] = f'Outlier detection failed: {str(e)}'
+                results['outlier_indices'] = []
+                results['percentile_ranks'] = []
         
         return results
     
@@ -244,7 +331,9 @@ class DataQualityAssessor:
             'anomaly_scores': [],
             'anomaly_flags': [],
             'anomaly_count': 0,
-            'method': 'tabpfn'
+            'method': 'tabpfn',
+            'anomaly_indices': [],
+            'percentile_ranks': []
         }
         
         # Use outlier detection as anomaly detection
@@ -256,6 +345,10 @@ class DataQualityAssessor:
             results['anomaly_count'] = outlier_results.get('outlier_count', 0)
             results['anomaly_percentage'] = outlier_results.get('outlier_percentage', 0.0)
             results['method'] = outlier_results.get('method', 'tabpfn')
+            results['fallback'] = outlier_results.get('fallback')
+            # Copy outlier indices as anomaly indices
+            results['anomaly_indices'] = outlier_results.get('outlier_indices', [])
+            results['percentile_ranks'] = outlier_results.get('percentile_ranks', [])
         
         return results
     

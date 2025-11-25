@@ -19,7 +19,9 @@ from visualizations import (
     create_quality_breakdown_chart,
     create_column_quality_table,
     create_anomaly_heatmap,
-    create_recommendations_panel
+    create_recommendations_panel,
+    create_outlier_scatter_plot,
+    create_missing_values_heatmap
 )
 from utils import calculate_basic_stats, log_operation, log_dev_event, log_error
 
@@ -268,22 +270,82 @@ def assess_data_quality(df: pd.DataFrame) -> dict:
     return quality_results
 
 
-def export_quality_report(results: dict, format: str = 'json') -> bytes:
+def export_quality_report(results: dict, df: pd.DataFrame, format: str = 'json') -> bytes:
     """
-    Export quality assessment results to a file.
+    Export quality assessment results to a file with row indices and flagged values.
     
     Args:
         results: Quality assessment results dictionary
+        df: Original DataFrame for value lookups
         format: Export format ('json' or 'csv')
         
     Returns:
         Bytes of the exported file
     """
     if format == 'json':
-        json_str = json.dumps(results, indent=2, default=str)
+        # Enhanced JSON with flagged values and row indices
+        export_data = {
+            'summary': {
+                'overall_score': results.get('quality_score', {}).get('overall_score', 0),
+                'missing_percentage': results.get('missing_assessment', {}).get('missing_percentage', 0),
+                'outlier_count': results.get('outlier_results', {}).get('outlier_count', 0),
+                'anomaly_count': results.get('anomaly_results', {}).get('anomaly_count', 0),
+                'clinical_issues': results.get('clinical_checks', {}).get('total_issues', 0),
+                'total_rows': len(df) if df is not None else 0,
+                'total_columns': len(df.columns) if df is not None else 0
+            },
+            'flagged_values': {
+                'outliers': [],
+                'missing': [],
+                'anomalies': [],
+                'clinical_issues': []
+            }
+        }
+        
+        # Add outlier details with values
+        outlier_indices = results.get('outlier_results', {}).get('outlier_indices', [])
+        for outlier_info in outlier_indices:
+            row_idx = outlier_info.get('row_index', -1)
+            if row_idx >= 0 and df is not None and row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                export_data['flagged_values']['outliers'].append({
+                    'row_index': row_idx,
+                    'outlier_score': outlier_info.get('outlier_score', 0),
+                    'percentile_rank': outlier_info.get('percentile_rank', 0),
+                    'values': {str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        # Add missing value details
+        missing_locations = results.get('missing_assessment', {}).get('missing_value_locations', [])
+        for missing_info in missing_locations:
+            row_idx = missing_info.get('row_index', -1)
+            col = missing_info.get('column', '')
+            if row_idx >= 0 and df is not None and row_idx < len(df) and col in df.columns:
+                export_data['flagged_values']['missing'].append({
+                    'row_index': row_idx,
+                    'column': col,
+                    'value_type': 'missing',
+                    'row_values': {str(k): str(v) for k, v in df.iloc[row_idx].to_dict().items()}
+                })
+        
+        # Add anomaly details
+        anomaly_indices = results.get('anomaly_results', {}).get('anomaly_indices', [])
+        for anomaly_info in anomaly_indices:
+            row_idx = anomaly_info.get('row_index', -1)
+            if row_idx >= 0 and df is not None and row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                export_data['flagged_values']['anomalies'].append({
+                    'row_index': row_idx,
+                    'anomaly_score': anomaly_info.get('outlier_score', 0),  # Uses outlier score
+                    'percentile_rank': anomaly_info.get('percentile_rank', 0),
+                    'values': {str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        json_str = json.dumps(export_data, indent=2, default=str)
         return json_str.encode('utf-8')
+    
     elif format == 'csv':
-        # Create a summary CSV
+        # Create summary CSV
         rows = []
         rows.append(['Metric', 'Value'])
         rows.append(['Overall Score', results.get('quality_score', {}).get('overall_score', 0)])
@@ -297,6 +359,179 @@ def export_quality_report(results: dict, format: str = 'json') -> bytes:
         return csv_str.encode('utf-8')
     else:
         raise ValueError(f"Unsupported format: {format}")
+
+
+def create_method_badge(method: str, fallback: str = None) -> pn.pane.HTML:
+    """
+    Create a badge showing the detection method used.
+    
+    Args:
+        method: Method name (e.g., 'tabpfn_unsupervised', 'statistical_fallback')
+        fallback: Fallback method if applicable
+        
+    Returns:
+        Panel HTML pane with method badge
+    """
+    if method == 'statistical_fallback' or fallback == 'statistical':
+        badge_html = """
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(245, 158, 11, 0.1); color: #f59e0b; 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(245, 158, 11, 0.3);">
+            <span style="margin-right: 4px;">⚠️</span>
+            Statistical Method
+        </span>
+        """
+    elif 'tabpfn' in method.lower():
+        badge_html = """
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(16, 185, 129, 0.1); color: #10b981; 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(16, 185, 129, 0.3);">
+            <span style="margin-right: 4px;">✓</span>
+            TabPFN Model
+        </span>
+        """
+    else:
+        badge_html = f"""
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(107, 114, 128, 0.3);">
+            {method}
+        </span>
+        """
+    
+    return pn.pane.HTML(badge_html, sizing_mode='stretch_width')
+
+
+def create_flagged_values_tab(results: dict, df: pd.DataFrame) -> pn.Tabs:
+    """
+    Create a tabbed interface for inspecting flagged values.
+    
+    Args:
+        results: Quality assessment results dictionary
+        df: Original DataFrame
+        
+    Returns:
+        Panel Tabs widget with flagged value tables
+    """
+    tabs = []
+    
+    # Outliers tab
+    outlier_indices = results.get('outlier_results', {}).get('outlier_indices', [])
+    if outlier_indices and df is not None:
+        outlier_data = []
+        for outlier_info in outlier_indices:
+            row_idx = outlier_info.get('row_index', -1)
+            if 0 <= row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                outlier_data.append({
+                    'Row Index': row_idx,
+                    'Outlier Score': f"{outlier_info.get('outlier_score', 0):.3f}",
+                    'Percentile Rank': f"{outlier_info.get('percentile_rank', 0):.1f}%",
+                    **{str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        if outlier_data:
+            outlier_df = pd.DataFrame(outlier_data)
+            outlier_table = pn.widgets.Tabulator(
+                outlier_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Outliers', outlier_table))
+    
+    # Missing values tab
+    missing_locations = results.get('missing_assessment', {}).get('missing_value_locations', [])
+    if missing_locations and df is not None:
+        missing_data = []
+        for missing_info in missing_locations:
+            row_idx = missing_info.get('row_index', -1)
+            col = missing_info.get('column', '')
+            if 0 <= row_idx < len(df) and col in df.columns:
+                row_data = df.iloc[row_idx].to_dict()
+                missing_data.append({
+                    'Row Index': row_idx,
+                    'Column': col,
+                    'Value Type': 'Missing',
+                    **{str(k): str(v) if not pd.isna(v) else 'NaN' for k, v in row_data.items()}
+                })
+        
+        if missing_data:
+            missing_df = pd.DataFrame(missing_data)
+            missing_table = pn.widgets.Tabulator(
+                missing_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Missing Values', missing_table))
+    
+    # Anomalies tab
+    anomaly_indices = results.get('anomaly_results', {}).get('anomaly_indices', [])
+    if anomaly_indices and df is not None:
+        anomaly_data = []
+        for anomaly_info in anomaly_indices:
+            row_idx = anomaly_info.get('row_index', -1)
+            if 0 <= row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                anomaly_data.append({
+                    'Row Index': row_idx,
+                    'Anomaly Score': f"{anomaly_info.get('outlier_score', 0):.3f}",
+                    'Percentile Rank': f"{anomaly_info.get('percentile_rank', 0):.1f}%",
+                    **{str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        if anomaly_data:
+            anomaly_df = pd.DataFrame(anomaly_data)
+            anomaly_table = pn.widgets.Tabulator(
+                anomaly_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Anomalies', anomaly_table))
+    
+    # Clinical issues tab
+    clinical_checks = results.get('clinical_checks', {})
+    if clinical_checks.get('has_issues', False) and df is not None:
+        clinical_data = []
+        # Extract clinical issues (simplified - would need to track row indices in clinical_quality.py)
+        for check_type, check_results in clinical_checks.items():
+            if isinstance(check_results, dict) and check_results.get('has_issues'):
+                issue_count = check_results.get('total_issues', 0)
+                if issue_count > 0:
+                    clinical_data.append({
+                        'Issue Type': check_type.replace('_', ' ').title(),
+                        'Count': issue_count,
+                        'Details': str(check_results.get('details', ''))[:100]
+                    })
+        
+        if clinical_data:
+            clinical_df = pd.DataFrame(clinical_data)
+            clinical_table = pn.widgets.Tabulator(
+                clinical_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Clinical Issues', clinical_table))
+    
+    # If no tabs created, show message
+    if not tabs:
+        no_data_pane = pn.pane.HTML(
+            '<div class="dashboard-card" style="padding: 24px; text-align: center; color: var(--text-secondary);">No flagged values found.</div>',
+            sizing_mode='stretch_width'
+        )
+        return pn.Tabs([('No Data', no_data_pane)])
+    
+    return pn.Tabs(*tabs)
 
 
 def create_dashboard(df: pd.DataFrame) -> pn.Column:
@@ -330,9 +565,15 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     # Missing values chart
     missing_chart = create_missing_values_chart(results['missing_assessment'])
     
-    # Outlier distribution
+    # Outlier distribution (histogram)
     outlier_scores = results['outlier_results'].get('outlier_scores', [])
     outlier_chart = create_outlier_distribution_chart(outlier_scores)
+    
+    # Outlier scatter plot (new visualization)
+    outlier_scatter = create_outlier_scatter_plot(results['outlier_results'], df)
+    
+    # Missing values heatmap (new visualization)
+    missing_heatmap = create_missing_values_heatmap(results['missing_assessment'], df)
     
     # Quality breakdown
     component_scores = results['quality_score']['component_scores']
@@ -349,31 +590,33 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     recommendations = create_recommendations_panel(results)
     
     # Export functionality
-    json_data = export_quality_report(results, format='json')
-    csv_data = export_quality_report(results, format='csv')
+    json_data = export_quality_report(results, df, format='json')
+    csv_data = export_quality_report(results, df, format='csv')
     
+    # Create FileDownload widgets with proper configuration
     export_json_file = pn.widgets.FileDownload(
-        file='quality_report.json',
-        button_type='primary',
+        file=io.BytesIO(json_data),
         filename='quality_report.json',
-        auto=True
+        button_type='primary',
+        auto=False
     )
-    export_json_file.file = json_data
     
     export_csv_file = pn.widgets.FileDownload(
-        file='quality_report.csv',
-        button_type='primary',
+        file=io.BytesIO(csv_data),
         filename='quality_report.csv',
-        auto=True
+        button_type='primary',
+        auto=False
     )
-    export_csv_file.file = csv_data
     
     export_panel = pn.Row(
-        pn.pane.Markdown("### Export Quality Report"),
+        pn.pane.HTML('<h3 class="section-heading">Export Quality Report</h3>', sizing_mode='stretch_width'),
         export_json_file,
         export_csv_file,
         sizing_mode='stretch_width'
     )
+    
+    # Flagged values inspection tab
+    flagged_values_tab = create_flagged_values_tab(results, df)
     
     # Clinical quality issues
     clinical_issues_html = ""
@@ -384,9 +627,9 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
                 issues_list.append(f"<li><strong>{check_type.replace('_', ' ').title()}:</strong> {check_results.get('total_issues', 0)} issues</li>")
         
         clinical_issues_html = f"""
-        <div style="padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107; margin: 10px 0;">
-            <h4 style="margin-top: 0;">Clinical Quality Issues</h4>
-            <ul style="margin: 0; padding-left: 20px;">
+        <div class="dashboard-card" style="padding: 15px; border-left: 4px solid var(--warning-color);">
+            <h4 class="section-heading" style="margin-top: 0;">Clinical Quality Issues</h4>
+            <ul style="margin: 0; padding-left: 20px; color: var(--text-primary);">
                 {''.join(issues_list)}
             </ul>
         </div>
@@ -394,55 +637,124 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     
     clinical_pane = pn.pane.HTML(clinical_issues_html, sizing_mode='stretch_width') if clinical_issues_html else pn.pane.HTML("", height=0)
     
-    # Layout with improved spacing
+    # Layout with improved spacing and theme-aware styling
     dashboard = pn.Column(
         pn.pane.HTML(
-            '<h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">📊 Data Quality Assessment Dashboard</h1>',
+            '<h1 class="section-heading" style="font-size: 28px; font-weight: 700; margin-bottom: 8px;">📊 Data Quality Assessment Dashboard</h1>',
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=8),
-        score_card,
-        pn.Spacer(height=24),
-        summary_cards,
-        pn.Spacer(height=24),
+        pn.Spacer(height=16),
+        pn.Column(
+            score_card,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            summary_cards,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
-                missing_chart,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
+                pn.Column(missing_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 8, 0, 0)
             ),
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Quality Score Breakdown</h3>', sizing_mode='stretch_width'),
-                breakdown_chart,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Quality Score Breakdown</h3>', sizing_mode='stretch_width'),
+                pn.Column(breakdown_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 0, 0, 8)
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
+        pn.Spacer(height=32),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Distribution</h3>', sizing_mode='stretch_width'),
-                outlier_chart,
-                sizing_mode='stretch_width'
+                pn.Row(
+                    pn.pane.HTML('<h3 class="section-heading">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
+                    create_method_badge(
+                        results['outlier_results'].get('method', 'unknown'),
+                        results['outlier_results'].get('fallback')
+                    ),
+                    sizing_mode='stretch_width'
+                ),
+                pn.Column(outlier_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 8, 0, 0)
             ),
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
-                anomaly_heatmap,
-                sizing_mode='stretch_width'
+                pn.Row(
+                    pn.pane.HTML('<h3 class="section-heading">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
+                    create_method_badge(
+                        results['anomaly_results'].get('method', 'unknown'),
+                        results['anomaly_results'].get('fallback')
+                    ),
+                    sizing_mode='stretch_width'
+                ),
+                pn.Column(anomaly_heatmap, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 0, 0, 8)
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
-        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
-        column_table,
-        pn.Spacer(height=24),
-        recommendations,
-        clinical_pane,
-        pn.Spacer(height=24),
-        export_panel,
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.Row(
+                pn.pane.HTML('<h3 class="section-heading">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
+                create_method_badge(
+                    results['outlier_results'].get('method', 'unknown'),
+                    results['outlier_results'].get('fallback')
+                ),
+                sizing_mode='stretch_width'
+            ),
+            pn.pane.HTML('<p class="section-subheading">Outlier scores by row index, colored by percentile rank</p>', sizing_mode='stretch_width'),
+            pn.Column(outlier_scatter, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Missing Values Heatmap</h3>', sizing_mode='stretch_width'),
+            pn.pane.HTML('<p class="section-subheading">Condensed view of missing value patterns across rows and columns</p>', sizing_mode='stretch_width'),
+            pn.Column(missing_heatmap, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
+            pn.Column(column_table, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Flagged Values Inspection</h3>', sizing_mode='stretch_width'),
+            pn.pane.HTML('<p class="section-subheading">Inspect specific rows and values that were flagged as outliers, missing, anomalies, or clinical issues</p>', sizing_mode='stretch_width'),
+            pn.Column(flagged_values_tab, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            recommendations,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Column(
+            clinical_pane,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ) if clinical_issues_html else pn.Spacer(height=0),
+        pn.Spacer(height=32),
+        pn.Column(
+            export_panel,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
         sizing_mode='stretch_width',
         scroll=True,
-        margin=(0, 20, 20, 20)
+        margin=(0, 24, 24, 24)
     )
     
     return dashboard
@@ -517,7 +829,7 @@ def process_file(event):
         log_error(e, {'context': 'dashboard_creation', 'file_rows': len(df) if df is not None else 0})
         status_pane.object = f'<div class="status-message status-error">❌ Error during assessment: {str(e)}</div>'
         error_html = pn.pane.HTML(
-            f'<div style="padding: 24px; background: #fee2e2; border-radius: 12px; border-left: 4px solid #ef4444; color: #991b1b;"><h3 style="margin-top: 0;">Error</h3><p>{str(e)}</p></div>', 
+            f'<div class="dashboard-card" style="padding: 24px; border-left: 4px solid var(--danger-color);"><h3 style="margin-top: 0; color: var(--text-primary);">Error</h3><p style="color: var(--text-primary);">{str(e)}</p></div>', 
             sizing_mode='stretch_width'
         )
         dashboard_pane.objects = [error_html]
@@ -537,59 +849,273 @@ status_pane = pn.pane.HTML(
     '<div class="status-message status-info">📁 Please upload a CSV file to begin assessment.</div>', 
     sizing_mode='stretch_width'
 )
+
+# Create dashboard pane - will be updated reactively
 dashboard_pane = pn.Column(sizing_mode='stretch_width', scroll=True)
 
-# Custom CSS for modern styling
+# Custom CSS for modern styling with dark mode support
 custom_css = """
 <style>
+    /* Light mode CSS variables */
     :root {
         --primary-color: #2563eb;
         --success-color: #10b981;
         --warning-color: #f59e0b;
         --danger-color: #ef4444;
         --bg-color: #f9fafb;
+        --bg-secondary: #ffffff;
         --text-primary: #1f2937;
         --text-secondary: #6b7280;
+        --text-tertiary: #9ca3af;
+        --border-color: #e5e7eb;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --spacing-xs: 4px;
+        --spacing-sm: 8px;
+        --spacing-md: 16px;
+        --spacing-lg: 24px;
+        --spacing-xl: 32px;
+        --spacing-2xl: 48px;
     }
     
+    /* Dark mode CSS variables */
+    [data-theme="dark"], 
+    .dark-mode,
+    .bk-root[data-theme="dark"] {
+        --primary-color: #3b82f6;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-color: #111827;
+        --bg-secondary: #1f2937;
+        --text-primary: #f9fafb;
+        --text-secondary: #d1d5db;
+        --text-tertiary: #9ca3af;
+        --border-color: #374151;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Base styling */
     .bk-panel-widget {
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
     
-    .dashboard-header {
-        margin-bottom: 24px;
+    /* Dashboard spacing utilities */
+    .dashboard-section {
+        margin-bottom: var(--spacing-xl);
+        padding: var(--spacing-lg);
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
     }
     
+    .dashboard-header {
+        margin-bottom: var(--spacing-lg);
+    }
+    
+    /* Status messages with theme support */
     .status-message {
         padding: 12px 16px;
         border-radius: 8px;
         margin: 12px 0;
         font-size: 14px;
         line-height: 1.5;
+        transition: all 0.2s ease;
     }
     
     .status-success {
-        background-color: #d1fae5;
-        color: #065f46;
+        background-color: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
         border-left: 4px solid var(--success-color);
     }
     
+    [data-theme="dark"] .status-success,
+    .dark-mode .status-success {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+    
     .status-warning {
-        background-color: #fef3c7;
-        color: #92400e;
+        background-color: rgba(245, 158, 11, 0.1);
+        color: var(--warning-color);
         border-left: 4px solid var(--warning-color);
     }
     
+    [data-theme="dark"] .status-warning,
+    .dark-mode .status-warning {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+    }
+    
     .status-error {
-        background-color: #fee2e2;
-        color: #991b1b;
+        background-color: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
         border-left: 4px solid var(--danger-color);
     }
     
+    [data-theme="dark"] .status-error,
+    .dark-mode .status-error {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+    }
+    
     .status-info {
-        background-color: #dbeafe;
-        color: #1e40af;
+        background-color: rgba(37, 99, 235, 0.1);
+        color: var(--primary-color);
         border-left: 4px solid var(--primary-color);
+    }
+    
+    [data-theme="dark"] .status-info,
+    .dark-mode .status-info {
+        background-color: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+    }
+    
+    /* Theme-aware headings */
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--text-primary);
+        transition: color 0.2s ease;
+    }
+    
+    /* Tabulator table styling */
+    .tabulator {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+    }
+    
+    .tabulator .tabulator-header {
+        background: var(--bg-color);
+        border-bottom: 2px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .tabulator .tabulator-header .tabulator-col {
+        background: var(--bg-color);
+        color: var(--text-primary);
+        border-right: 1px solid var(--border-color);
+    }
+    
+    .tabulator .tabulator-header .tabulator-col:hover {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-tableHolder {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-table {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-row {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.15s ease;
+    }
+    
+    .tabulator .tabulator-row:hover {
+        background: var(--bg-color);
+    }
+    
+    .tabulator .tabulator-cell {
+        color: var(--text-primary);
+        border-right: 1px solid var(--border-color);
+        padding: 12px 16px;
+    }
+    
+    /* Custom scrollbar styling for Tabulator */
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-track {
+        background: var(--bg-color);
+        border-radius: 5px;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-thumb {
+        background: var(--text-tertiary);
+        border-radius: 5px;
+        transition: background 0.2s ease;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
+    }
+    
+    /* Firefox scrollbar */
+    .tabulator .tabulator-tableHolder {
+        scrollbar-width: thin;
+        scrollbar-color: var(--text-tertiary) var(--bg-color);
+    }
+    
+    /* Pagination styling */
+    .tabulator .tabulator-footer {
+        background: var(--bg-color);
+        border-top: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    
+    .tabulator .tabulator-page {
+        color: var(--text-primary);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        margin: 0 2px;
+        padding: 6px 12px;
+        transition: all 0.2s ease;
+    }
+    
+    .tabulator .tabulator-page:hover {
+        background: var(--bg-color);
+        border-color: var(--primary-color);
+    }
+    
+    .tabulator .tabulator-page.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    
+    /* Improved spacing for dashboard sections */
+    .dashboard-card {
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    .dashboard-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    
+    /* Section headings */
+    .section-heading {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-md);
+        margin-top: 0;
+    }
+    
+    .section-subheading {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: var(--spacing-sm);
+        margin-top: 0;
     }
 </style>
 """
@@ -627,6 +1153,21 @@ app = pn.template.FastListTemplate(
     header_color='white',
     sidebar_width=320
 )
+
+# Watch for theme changes and restore dashboard if DataFrame exists
+def on_theme_change(event):
+    """Restore dashboard when theme changes if we have data."""
+    global current_df
+    if current_df is not None and len(dashboard_pane.objects) == 0:
+        # Theme changed and dashboard was cleared, recreate it
+        try:
+            dashboard = create_dashboard(current_df)
+            dashboard_pane.objects = [dashboard]
+        except Exception as e:
+            log_error(e, {'context': 'theme_change_restore', 'df_rows': len(current_df) if current_df is not None else 0})
+
+# Watch the app's theme parameter for changes
+app.param.watch(on_theme_change, 'theme')
 
 # Make servable
 app.servable()
