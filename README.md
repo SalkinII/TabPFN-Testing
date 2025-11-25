@@ -40,6 +40,43 @@ docker-compose -f docker-compose.prod.yml logs -f
 docker-compose -f docker-compose.prod.yml down
 ```
 
+### Using GitHub Container Registry (Pre-built Image)
+
+Pre-built Docker images are automatically published to GitHub Container Registry (ghcr.io) on every push to the `production` branch.
+
+**Pull and run the latest image:**
+
+```bash
+# Pull the latest image from GitHub Container Registry
+docker pull ghcr.io/salkinii/tabpfn-testing:latest
+
+# Run the container
+docker run -p 5006:5006 ghcr.io/salkinii/tabpfn-testing:latest
+```
+
+**Using Docker Compose with registry image:**
+
+The `docker-compose.prod.yml` file is configured to use the pre-built image from GitHub Container Registry. Simply run:
+
+```bash
+# Pull latest image and start
+docker-compose -f docker-compose.prod.yml pull
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+**Available image tags:**
+- `latest` - Latest production build
+- `production` - Production branch builds
+- `v1.0.0`, `v1.1.0` - Version tags (when created)
+- `production-<sha>` - Specific commit builds
+
+**Note:** If the repository is public, images are publicly accessible. If private, you'll need to authenticate:
+
+```bash
+# Authenticate with GitHub Container Registry
+echo $GITHUB_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin
+```
+
 ### Environment Variables
 
 The application supports the following environment variables:
@@ -47,11 +84,22 @@ The application supports the following environment variables:
 - `HF_TOKEN`: (Optional) Hugging Face token for TabPFN model access. If not provided, TabPFN will use statistical fallback methods.
 - `PYTHONUNBUFFERED`: (Optional) Set to `1` for unbuffered Python output (useful for logging)
 
-Example with environment variables:
+**Important Security Note:** The `HF_TOKEN` is never baked into Docker images. It must be provided at runtime via environment variables or `.env` file. This ensures your token remains secure and is never exposed in public repositories or images.
+
+**Example with environment variables:**
 
 ```bash
-docker run -p 5006:5006 -e HF_TOKEN=your_token_here tabpfn-data-quality
+# Using docker run
+docker run -p 5006:5006 -e HF_TOKEN=your_token_here ghcr.io/salkinii/tabpfn-testing:latest
+
+# Or using docker-compose with .env file
+# Create .env file (not committed to git):
+# HF_TOKEN=your_token_here
+docker-compose -f docker-compose.prod.yml up -d
 ```
+
+**Without HF_TOKEN:**
+The application works perfectly without a Hugging Face token, using statistical fallback methods for outlier and anomaly detection. The token is only needed if you want to use TabPFN's authenticated model access.
 
 ## Usage
 

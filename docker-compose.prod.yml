@@ -1,8 +1,8 @@
 services:
   tabpfn:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    # Image from GitHub Container Registry
+    # Image will be available at: ghcr.io/SalkinII/TabPFN-Testing:latest
+    image: ghcr.io/SalkinII/TabPFN-Testing:latest
     container_name: tabpfn-data-quality
     ports:
       - "5006:5006"
