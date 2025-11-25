@@ -12,6 +12,8 @@ from tabpfn_extensions.unsupervised import experiments
 import warnings
 warnings.filterwarnings('ignore')
 
+from utils import log_tabpfn_fallback, log_tabpfn_error, log_tabpfn_success, get_dataset_info
+
 
 class DataQualityAssessor:
     """
@@ -45,6 +47,16 @@ class DataQualityAssessor:
         except Exception as e:
             print(f"Warning: Could not initialize TabPFN models: {e}")
             print("Some features may not be available.")
+            # Log initialization failure
+            log_tabpfn_error(
+                e,
+                context={
+                    'operation': 'model_initialization',
+                    'n_estimators': self.n_estimators,
+                    'random_state': self.random_state
+                },
+                dataset_info=None
+            )
     
     def assess_missing_values(self, df: pd.DataFrame) -> Dict:
         """
@@ -104,6 +116,17 @@ class DataQualityAssessor:
                     results['pattern_analysis'] = self._analyze_missing_patterns(sample_df)
             except Exception as e:
                 results['pattern_analysis'] = {'error': str(e)}
+                # Log pattern analysis failure (not a critical fallback, but worth logging)
+                dataset_info = get_dataset_info(df)
+                log_tabpfn_error(
+                    e,
+                    context={
+                        'method': 'missing_value_pattern_analysis',
+                        'operation': 'pattern_analysis',
+                        'note': 'This is a non-critical failure - basic statistics still available'
+                    },
+                    dataset_info=dataset_info
+                )
         
         return results
     
@@ -155,6 +178,16 @@ class DataQualityAssessor:
         }
         
         if self.unsupervised_model is None:
+            dataset_info = get_dataset_info(df)
+            log_tabpfn_fallback(
+                reason='initialization_failure',
+                context={
+                    'method': 'outlier_detection',
+                    'fallback_method': 'statistical_zscore',
+                    'error': 'TabPFN unsupervised model not available'
+                },
+                dataset_info=dataset_info
+            )
             return {
                 **results,
                 'error': 'TabPFN unsupervised model not available',
@@ -166,6 +199,16 @@ class DataQualityAssessor:
             numeric_df = df.select_dtypes(include=[np.number])
             
             if len(numeric_df.columns) == 0:
+                dataset_info = get_dataset_info(df)
+                log_tabpfn_fallback(
+                    reason='no_numeric_columns',
+                    context={
+                        'method': 'outlier_detection',
+                        'fallback_method': 'none',
+                        'error': 'No numeric columns found for outlier detection'
+                    },
+                    dataset_info=dataset_info
+                )
                 return {
                     **results,
                     'error': 'No numeric columns found for outlier detection'
@@ -180,6 +223,7 @@ class DataQualityAssessor:
             sampled_indices = None
             
             # Limit to reasonable size for TabPFN
+            dataset_sampled = False
             if len(numeric_df_reset) > 1000:
                 # Sample from reset DataFrame (has clean 0-based index)
                 sampled_df = numeric_df_reset.sample(n=1000, random_state=self.random_state)
@@ -187,6 +231,7 @@ class DataQualityAssessor:
                 sampled_positions = sampled_df.index.tolist()  # These are 0-based positions
                 sampled_indices = [original_indices[pos] for pos in sampled_positions if pos < len(original_indices)]
                 numeric_df = sampled_df.reset_index(drop=True)  # Ensure clean index for tensor conversion
+                dataset_sampled = True
             else:
                 numeric_df = numeric_df_reset
                 sampled_indices = None  # Use all rows
@@ -222,7 +267,19 @@ class DataQualityAssessor:
                 scores = outlier_results['outlier_scores']
             else:
                 # Fallback to statistical method
+                dataset_info = get_dataset_info(df)
+                log_tabpfn_fallback(
+                    reason='no_outlier_scores',
+                    context={
+                        'method': 'outlier_detection',
+                        'fallback_method': 'statistical_zscore',
+                        'error': 'TabPFN did not return outlier scores'
+                    },
+                    dataset_info=dataset_info
+                )
                 scores = self._statistical_outlier_detection(numeric_df)
+                results['method'] = 'statistical_fallback'
+                results['fallback'] = 'statistical'
             
             scores_list = scores.tolist() if isinstance(scores, np.ndarray) else scores
             results['outlier_scores'] = scores_list
@@ -254,8 +311,33 @@ class DataQualityAssessor:
                         'percentile_rank': float(percentile_ranks[idx])
                     })
             
+            # Log successful TabPFN usage
+            if results['method'] == 'tabpfn_unsupervised':
+                dataset_info = get_dataset_info(df)
+                log_tabpfn_success(
+                    method='outlier_detection',
+                    dataset_info=dataset_info,
+                    metrics={
+                        'outlier_count': results['outlier_count'],
+                        'outlier_percentage': results.get('outlier_percentage', 0),
+                        'dataset_sampled': dataset_sampled,
+                        'original_rows': len(df),
+                        'processed_rows': len(numeric_df)
+                    }
+                )
+            
         except Exception as e:
             # Fallback to statistical method
+            dataset_info = get_dataset_info(df)
+            log_tabpfn_error(
+                e,
+                context={
+                    'method': 'outlier_detection',
+                    'operation': 'tabpfn_processing',
+                    'fallback_method': 'statistical_zscore'
+                },
+                dataset_info=dataset_info
+            )
             numeric_df = df.select_dtypes(include=[np.number])
             if len(numeric_df.columns) > 0:
                 # Reset index to avoid duplicate label issues
@@ -277,6 +359,19 @@ class DataQualityAssessor:
                 results['outlier_percentage'] = float(results['outlier_count'] / len(results['outlier_flags']) * 100)
                 results['method'] = 'statistical_fallback'
                 results['error'] = str(e)
+                results['fallback'] = 'statistical'
+                
+                # Log fallback
+                log_tabpfn_fallback(
+                    reason='processing_exception',
+                    context={
+                        'method': 'outlier_detection',
+                        'fallback_method': 'statistical_zscore',
+                        'error': str(e),
+                        'error_type': type(e).__name__
+                    },
+                    dataset_info=dataset_info
+                )
                 
                 # Track row indices for outliers
                 results['outlier_indices'] = []

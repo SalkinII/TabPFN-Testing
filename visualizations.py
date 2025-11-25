@@ -224,7 +224,7 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
 
 
-def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Plotly:
+def create_outlier_distribution_chart(outlier_scores: List[float], method: str = None, fallback: str = None) -> pn.pane.Plotly:
     """
     Create a histogram showing outlier score distribution with modern styling.
     
@@ -277,10 +277,19 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
         annotation_font_color="#ef4444"
     )
     
+    # Add method info to title
+    title_text = 'Outlier Score Distribution'
+    if method:
+        method_label = 'TabPFN' if 'tabpfn' in method.lower() else 'Statistical'
+        if fallback == 'statistical' or method == 'statistical_fallback':
+            title_text += ' (Statistical Method)'
+        else:
+            title_text += ' (TabPFN)'
+    
     fig.update_layout(
         template=get_plotly_template(),
         title=dict(
-            text='Outlier Score Distribution',
+            text=title_text,
             font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
@@ -396,7 +405,7 @@ def create_column_quality_table(column_quality: Dict[str, Dict]) -> pn.widgets.T
     )
 
 
-def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn.pane.Plotly:
+def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100, method: str = None, fallback: str = None) -> pn.pane.Plotly:
     """
     Create a heatmap showing anomaly patterns with modern styling.
     
@@ -452,10 +461,18 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
         hovertemplate='Row: %{y}<br>Column: %{x}<br>Score: %{z:.2f}<extra></extra>'
     ))
     
+    # Add method info to title
+    title_text = 'Anomaly Score Heatmap (First 100 Records)'
+    if method:
+        if fallback == 'statistical' or method == 'statistical_fallback':
+            title_text += ' (Statistical Method)'
+        else:
+            title_text += ' (TabPFN)'
+    
     fig.update_layout(
         template=get_plotly_template(),
         title=dict(
-            text='Anomaly Score Heatmap (First 100 Records)',
+            text=title_text,
             font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
@@ -537,7 +554,7 @@ def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     return pn.pane.HTML(html, sizing_mode='stretch_width')
 
 
-def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.pane.Plotly:
+def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame, method: str = None, fallback: str = None) -> pn.pane.Plotly:
     """
     Create a scatter plot showing outlier scores with percentile-based coloring.
     
@@ -618,10 +635,18 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
         annotation_font_color="#ef4444"
     )
     
+    # Add method info to title
+    title_text = 'Outlier Distribution by Row Index'
+    if method:
+        if fallback == 'statistical' or method == 'statistical_fallback':
+            title_text += ' (Statistical Method)'
+        else:
+            title_text += ' (TabPFN)'
+    
     fig.update_layout(
         template=get_plotly_template(),
         title=dict(
-            text='Outlier Distribution by Row Index',
+            text=title_text,
             font=dict(size=18, color=theme_colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(

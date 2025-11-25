@@ -361,48 +361,184 @@ def export_quality_report(results: dict, df: pd.DataFrame, format: str = 'json')
         raise ValueError(f"Unsupported format: {format}")
 
 
-def create_method_badge(method: str, fallback: str = None) -> pn.pane.HTML:
+def create_method_badge(method: str, fallback: str = None, error: str = None, 
+                       tooltip: str = None) -> pn.pane.HTML:
     """
-    Create a badge showing the detection method used.
+    Create an enhanced badge showing the detection method used with tooltips and explanations.
     
     Args:
         method: Method name (e.g., 'tabpfn_unsupervised', 'statistical_fallback')
         fallback: Fallback method if applicable
+        error: Error message if applicable
+        tooltip: Custom tooltip text (optional)
         
     Returns:
         Panel HTML pane with method badge
     """
-    if method == 'statistical_fallback' or fallback == 'statistical':
-        badge_html = """
-        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
-                     background: rgba(245, 158, 11, 0.1); color: #f59e0b; 
-                     border-radius: 12px; font-size: 12px; font-weight: 500; 
-                     border: 1px solid rgba(245, 158, 11, 0.3);">
-            <span style="margin-right: 4px;">⚠️</span>
-            Statistical Method
-        </span>
-        """
+    # Determine badge type and styling
+    if error or (method == 'statistical_fallback' and error):
+        # Error state - red badge
+        icon = "❌"
+        label = "Error - Using Statistical Method"
+        bg_color = "rgba(239, 68, 68, 0.15)"
+        text_color = "#ef4444"
+        border_color = "rgba(239, 68, 68, 0.4)"
+        default_tooltip = "TabPFN encountered an error and fell back to statistical methods. Results may be less accurate."
+    elif method == 'statistical_fallback' or fallback == 'statistical':
+        # Fallback state - yellow badge
+        icon = "⚠️"
+        label = "Statistical Method (Fallback)"
+        bg_color = "rgba(245, 158, 11, 0.15)"
+        text_color = "#f59e0b"
+        border_color = "rgba(245, 158, 11, 0.4)"
+        default_tooltip = "TabPFN was not available, so statistical methods were used. TabPFN provides more sophisticated pattern detection."
     elif 'tabpfn' in method.lower():
-        badge_html = """
-        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
-                     background: rgba(16, 185, 129, 0.1); color: #10b981; 
-                     border-radius: 12px; font-size: 12px; font-weight: 500; 
-                     border: 1px solid rgba(16, 185, 129, 0.3);">
-            <span style="margin-right: 4px;">✓</span>
-            TabPFN Model
-        </span>
-        """
+        # TabPFN success - green badge
+        icon = "✓"
+        label = "TabPFN AI Model"
+        bg_color = "rgba(16, 185, 129, 0.15)"
+        text_color = "#10b981"
+        border_color = "rgba(16, 185, 129, 0.4)"
+        default_tooltip = "Using TabPFN (Prior-Data Fitted Networks) for advanced pattern detection and anomaly identification."
     else:
-        badge_html = f"""
-        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
-                     background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); 
-                     border-radius: 12px; font-size: 12px; font-weight: 500; 
-                     border: 1px solid rgba(107, 114, 128, 0.3);">
-            {method}
+        # Unknown method - gray badge
+        icon = "ℹ️"
+        label = method
+        bg_color = "rgba(107, 114, 128, 0.1)"
+        text_color = "var(--text-secondary)"
+        border_color = "rgba(107, 114, 128, 0.3)"
+        default_tooltip = f"Using {method} for analysis."
+    
+    # Use custom tooltip if provided, otherwise use default
+    tooltip_text = tooltip or default_tooltip
+    
+    # Add error details to tooltip if present
+    if error:
+        tooltip_text += f" Error: {error}"
+    
+    badge_html = f"""
+    <div style="position: relative; display: inline-block;">
+        <span id="method-badge-{id(method)}" 
+              style="display: inline-flex; align-items: center; padding: 6px 16px; 
+                     background: {bg_color}; color: {text_color}; 
+                     border-radius: 16px; font-size: 13px; font-weight: 600; 
+                     border: 2px solid {border_color};
+                     cursor: help;
+                     transition: all 0.2s ease;
+                     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);"
+              title="{tooltip_text}"
+              onmouseover="this.style.transform='scale(1.05)'; this.style.boxShadow='0 4px 8px rgba(0, 0, 0, 0.15)';"
+              onmouseout="this.style.transform='scale(1)'; this.style.boxShadow='0 2px 4px rgba(0, 0, 0, 0.1)';">
+            <span style="margin-right: 6px; font-size: 16px;">{icon}</span>
+            <span>{label}</span>
         </span>
-        """
+    </div>
+    """
     
     return pn.pane.HTML(badge_html, sizing_mode='stretch_width')
+
+
+def create_method_summary_panel(results: dict) -> pn.pane.HTML:
+    """
+    Create a summary panel showing which methods were used for each feature.
+    
+    Args:
+        results: Quality assessment results dictionary
+        
+    Returns:
+        Panel HTML pane with method usage summary
+    """
+    # Collect method information from results
+    methods_used = []
+    fallback_reasons = []
+    
+    # Outlier detection method
+    outlier_results = results.get('outlier_results', {})
+    outlier_method = outlier_results.get('method', 'unknown')
+    outlier_fallback = outlier_results.get('fallback')
+    outlier_error = outlier_results.get('error')
+    
+    if outlier_method == 'tabpfn_unsupervised' and not outlier_fallback:
+        methods_used.append(('✓', 'TabPFN', 'Outlier Detection', '#10b981'))
+    elif outlier_fallback == 'statistical' or outlier_method == 'statistical_fallback':
+        methods_used.append(('⚠️', 'Statistical', 'Outlier Detection', '#f59e0b'))
+        if outlier_error:
+            fallback_reasons.append(f"Outlier Detection: {outlier_error}")
+    
+    # Anomaly detection method
+    anomaly_results = results.get('anomaly_results', {})
+    anomaly_method = anomaly_results.get('method', 'unknown')
+    anomaly_fallback = anomaly_results.get('fallback')
+    
+    if anomaly_method == 'tabpfn' and not anomaly_fallback:
+        methods_used.append(('✓', 'TabPFN', 'Anomaly Detection', '#10b981'))
+    elif anomaly_fallback == 'statistical' or anomaly_method == 'statistical_fallback':
+        methods_used.append(('⚠️', 'Statistical', 'Anomaly Detection', '#f59e0b'))
+    
+    # Missing value pattern analysis
+    missing_assessment = results.get('missing_assessment', {})
+    pattern_analysis = missing_assessment.get('pattern_analysis', {})
+    if isinstance(pattern_analysis, dict) and 'error' in pattern_analysis:
+        methods_used.append(('⚠️', 'Statistical', 'Missing Value Patterns', '#f59e0b'))
+        fallback_reasons.append(f"Missing Value Patterns: TabPFN imputation not implemented (using correlation-based analysis)")
+    else:
+        # Pattern analysis uses correlation (statistical), not TabPFN
+        methods_used.append(('⚠️', 'Statistical', 'Missing Value Patterns', '#f59e0b'))
+        fallback_reasons.append("Missing Value Patterns: TabPFN imputation not implemented (using correlation-based analysis)")
+    
+    # Build HTML
+    methods_html = ""
+    for icon, method_type, feature, color in methods_used:
+        methods_html += f"""
+        <div style="display: flex; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+            <span style="font-size: 18px; margin-right: 12px;">{icon}</span>
+            <span style="font-weight: 600; color: {color}; margin-right: 8px;">{method_type}:</span>
+            <span style="color: var(--text-primary);">{feature}</span>
+        </div>
+        """
+    
+    reasons_html = ""
+    if fallback_reasons:
+        for reason in fallback_reasons:
+            reasons_html += f"""
+            <li style="margin: 8px 0; padding: 8px 12px; background: var(--bg-color); 
+                       border-radius: 6px; color: var(--text-primary); font-size: 13px;">
+                {reason}
+            </li>
+            """
+    else:
+        reasons_html = """
+        <li style="margin: 8px 0; padding: 8px 12px; color: var(--text-secondary); font-size: 13px;">
+            No fallbacks occurred - all features used TabPFN successfully.
+        </li>
+        """
+    
+    html = f"""
+    <div class="dashboard-card" style="padding: 24px;">
+        <h4 class="section-heading" style="margin: 0 0 16px 0;">Method Usage Summary</h4>
+        <div style="margin-bottom: 20px;">
+            {methods_html}
+        </div>
+        <div style="margin-top: 20px; padding-top: 16px; border-top: 2px solid var(--border-color);">
+            <h5 style="margin: 0 0 12px 0; color: var(--text-primary); font-size: 14px; font-weight: 600;">
+                Fallback Reasons:
+            </h5>
+            <ul style="margin: 0; padding-left: 20px; list-style: none;">
+                {reasons_html}
+            </ul>
+        </div>
+        <div style="margin-top: 16px; padding: 12px; background: rgba(37, 99, 235, 0.1); 
+                    border-radius: 8px; border-left: 4px solid #2563eb;">
+            <p style="margin: 0; color: var(--text-primary); font-size: 12px; line-height: 1.5;">
+                <strong>Note:</strong> TabPFN provides more sophisticated pattern detection than statistical methods. 
+                See <a href="docs/TabPFN_Troubleshooting.md" style="color: #2563eb; text-decoration: underline;">troubleshooting guide</a> 
+                for information on enabling TabPFN features.
+            </p>
+        </div>
+    </div>
+    """
+    
+    return pn.pane.HTML(html, sizing_mode='stretch_width')
 
 
 def create_flagged_values_tab(results: dict, df: pd.DataFrame) -> pn.Tabs:
@@ -584,7 +720,11 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     
     # Anomaly heatmap
     anomaly_scores = results['anomaly_results'].get('anomaly_scores', [])
-    anomaly_heatmap = create_anomaly_heatmap(anomaly_scores)
+    anomaly_heatmap = create_anomaly_heatmap(
+        anomaly_scores,
+        method=results['anomaly_results'].get('method'),
+        fallback=results['anomaly_results'].get('fallback')
+    )
     
     # Recommendations
     recommendations = create_recommendations_panel(results)
@@ -656,6 +796,11 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
             sizing_mode='stretch_width'
         ),
         pn.Spacer(height=32),
+        pn.Column(
+            create_method_summary_panel(results),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
         pn.Row(
             pn.Column(
                 pn.pane.HTML('<h3 class="section-heading">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
@@ -678,7 +823,8 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
                     pn.pane.HTML('<h3 class="section-heading">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
                     create_method_badge(
                         results['outlier_results'].get('method', 'unknown'),
-                        results['outlier_results'].get('fallback')
+                        results['outlier_results'].get('fallback'),
+                        results['outlier_results'].get('error')
                     ),
                     sizing_mode='stretch_width'
                 ),
@@ -691,7 +837,8 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
                     pn.pane.HTML('<h3 class="section-heading">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
                     create_method_badge(
                         results['anomaly_results'].get('method', 'unknown'),
-                        results['anomaly_results'].get('fallback')
+                        results['anomaly_results'].get('fallback'),
+                        results['anomaly_results'].get('error')
                     ),
                     sizing_mode='stretch_width'
                 ),
@@ -707,7 +854,8 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
                 pn.pane.HTML('<h3 class="section-heading">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
                 create_method_badge(
                     results['outlier_results'].get('method', 'unknown'),
-                    results['outlier_results'].get('fallback')
+                    results['outlier_results'].get('fallback'),
+                    results['outlier_results'].get('error')
                 ),
                 sizing_mode='stretch_width'
             ),

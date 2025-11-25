@@ -201,3 +201,89 @@ def format_quality_score(score: float) -> Tuple[str, str]:
     
     return f"{score:.1f}", color
 
+
+def get_dataset_info(df: pd.DataFrame) -> Dict:
+    """
+    Extract dataset information for logging purposes.
+    
+    Args:
+        df: Input DataFrame
+        
+    Returns:
+        Dictionary with dataset characteristics
+    """
+    numeric_cols = df.select_dtypes(include=[np.number]).columns
+    categorical_cols = df.select_dtypes(include=['object', 'category']).columns
+    
+    return {
+        'rows': len(df),
+        'columns': len(df.columns),
+        'numeric_columns': len(numeric_cols),
+        'categorical_columns': len(categorical_cols),
+        'missing_cells': int(df.isnull().sum().sum()),
+        'missing_percentage': float(df.isnull().sum().sum() / df.size * 100) if df.size > 0 else 0.0
+    }
+
+
+def log_tabpfn_fallback(reason: str, context: Dict, dataset_info: Optional[Dict] = None) -> str:
+    """
+    Log when TabPFN falls back to statistical methods.
+    
+    Args:
+        reason: Reason for fallback (e.g., 'no_numeric_columns', 'initialization_failure', 'processing_exception')
+        context: Context dictionary with method, fallback_method, error details, etc.
+        dataset_info: Optional dataset information dictionary
+        
+    Returns:
+        Path to the log file
+    """
+    log_entry = {
+        'event_type': 'tabpfn_fallback',
+        'reason': reason,
+        'context': context,
+        'dataset_info': dataset_info or {}
+    }
+    return log_operation('tabpfn_fallback', log_entry, subfolder='dev')
+
+
+def log_tabpfn_error(error: Exception, context: Dict, dataset_info: Optional[Dict] = None) -> str:
+    """
+    Log TabPFN-specific errors.
+    
+    Args:
+        error: Exception object
+        context: Context dictionary with method, operation, etc.
+        dataset_info: Optional dataset information dictionary
+        
+    Returns:
+        Path to the log file
+    """
+    error_details = {
+        'event_type': 'tabpfn_error',
+        'error_type': type(error).__name__,
+        'error_message': str(error),
+        'context': context,
+        'dataset_info': dataset_info or {}
+    }
+    return log_operation('tabpfn_error', error_details, subfolder='dev')
+
+
+def log_tabpfn_success(method: str, dataset_info: Optional[Dict] = None, metrics: Optional[Dict] = None) -> str:
+    """
+    Log successful TabPFN usage.
+    
+    Args:
+        method: Method used (e.g., 'outlier_detection', 'anomaly_detection')
+        dataset_info: Optional dataset information dictionary
+        metrics: Optional metrics dictionary (e.g., processing time, scores)
+        
+    Returns:
+        Path to the log file
+    """
+    log_entry = {
+        'event_type': 'tabpfn_success',
+        'method': method,
+        'dataset_info': dataset_info or {},
+        'metrics': metrics or {}
+    }
+    return log_operation('tabpfn_success', log_entry, subfolder='dev')
