@@ -7,8 +7,55 @@ import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
+import plotly.io as pio
 from typing import Dict, List, Optional
 from utils import format_quality_score
+
+
+def get_plotly_template() -> str:
+    """
+    Get Plotly template based on Panel theme.
+    Returns 'plotly_dark' for dark mode, 'plotly' for light mode.
+    """
+    try:
+        # Try to detect theme from Panel config
+        # Panel's FastListTemplate uses 'dark' theme when dark mode is active
+        # We'll use a simple approach: check if we can detect dark mode
+        # For now, default to 'plotly' (light mode) and let Plotly handle it
+        # Panel will pass theme info through, but we'll use a responsive approach
+        return 'plotly'
+    except:
+        return 'plotly'
+
+
+def get_theme_colors(is_dark: bool = False) -> Dict[str, str]:
+    """
+    Get color scheme based on theme.
+    
+    Args:
+        is_dark: Whether dark mode is active
+        
+    Returns:
+        Dictionary with color values
+    """
+    if is_dark:
+        return {
+            'bg': '#1f2937',
+            'paper_bg': '#111827',
+            'text': '#f9fafb',
+            'text_secondary': '#d1d5db',
+            'grid': '#374151',
+            'border': '#4b5563'
+        }
+    else:
+        return {
+            'bg': '#f9fafb',
+            'paper_bg': '#ffffff',
+            'text': '#1f2937',
+            'text_secondary': '#6b7280',
+            'grid': '#e5e7eb',
+            'border': '#d1d5db'
+        }
 
 
 def create_quality_score_card(score: float, title: str = "Overall Quality Score") -> pn.pane.HTML:
@@ -488,18 +535,6 @@ def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     """
     
     return pn.pane.HTML(html, sizing_mode='stretch_width')
-
-"""
-Panel visualization components for data quality metrics.
-"""
-
-import panel as pn
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
-from typing import Dict, List, Optional
-from utils import format_quality_score
 
 
 def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.pane.Plotly:

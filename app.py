@@ -361,6 +361,50 @@ def export_quality_report(results: dict, df: pd.DataFrame, format: str = 'json')
         raise ValueError(f"Unsupported format: {format}")
 
 
+def create_method_badge(method: str, fallback: str = None) -> pn.pane.HTML:
+    """
+    Create a badge showing the detection method used.
+    
+    Args:
+        method: Method name (e.g., 'tabpfn_unsupervised', 'statistical_fallback')
+        fallback: Fallback method if applicable
+        
+    Returns:
+        Panel HTML pane with method badge
+    """
+    if method == 'statistical_fallback' or fallback == 'statistical':
+        badge_html = """
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(245, 158, 11, 0.1); color: #f59e0b; 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(245, 158, 11, 0.3);">
+            <span style="margin-right: 4px;">⚠️</span>
+            Statistical Method
+        </span>
+        """
+    elif 'tabpfn' in method.lower():
+        badge_html = """
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(16, 185, 129, 0.1); color: #10b981; 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(16, 185, 129, 0.3);">
+            <span style="margin-right: 4px;">✓</span>
+            TabPFN Model
+        </span>
+        """
+    else:
+        badge_html = f"""
+        <span style="display: inline-flex; align-items: center; padding: 4px 12px; 
+                     background: rgba(107, 114, 128, 0.1); color: var(--text-secondary); 
+                     border-radius: 12px; font-size: 12px; font-weight: 500; 
+                     border: 1px solid rgba(107, 114, 128, 0.3);">
+            {method}
+        </span>
+        """
+    
+    return pn.pane.HTML(badge_html, sizing_mode='stretch_width')
+
+
 def create_flagged_values_tab(results: dict, df: pd.DataFrame) -> pn.Tabs:
     """
     Create a tabbed interface for inspecting flagged values.
@@ -630,13 +674,27 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
         pn.Spacer(height=32),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 class="section-heading">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
+                pn.Row(
+                    pn.pane.HTML('<h3 class="section-heading">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
+                    create_method_badge(
+                        results['outlier_results'].get('method', 'unknown'),
+                        results['outlier_results'].get('fallback')
+                    ),
+                    sizing_mode='stretch_width'
+                ),
                 pn.Column(outlier_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
                 sizing_mode='stretch_width',
                 margin=(0, 8, 0, 0)
             ),
             pn.Column(
-                pn.pane.HTML('<h3 class="section-heading">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
+                pn.Row(
+                    pn.pane.HTML('<h3 class="section-heading">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
+                    create_method_badge(
+                        results['anomaly_results'].get('method', 'unknown'),
+                        results['anomaly_results'].get('fallback')
+                    ),
+                    sizing_mode='stretch_width'
+                ),
                 pn.Column(anomaly_heatmap, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
                 sizing_mode='stretch_width',
                 margin=(0, 0, 0, 8)
@@ -645,7 +703,14 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
         ),
         pn.Spacer(height=32),
         pn.Column(
-            pn.pane.HTML('<h3 class="section-heading">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
+            pn.Row(
+                pn.pane.HTML('<h3 class="section-heading">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
+                create_method_badge(
+                    results['outlier_results'].get('method', 'unknown'),
+                    results['outlier_results'].get('fallback')
+                ),
+                sizing_mode='stretch_width'
+            ),
             pn.pane.HTML('<p class="section-subheading">Outlier scores by row index, colored by percentile rank</p>', sizing_mode='stretch_width'),
             pn.Column(outlier_scatter, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
             sizing_mode='stretch_width'
