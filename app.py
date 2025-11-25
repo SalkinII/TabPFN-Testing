@@ -396,10 +396,9 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     
     # Layout with improved spacing
     dashboard = pn.Column(
-        pn.pane.Markdown(
-            "# 📊 Data Quality Assessment Dashboard", 
-            sizing_mode='stretch_width',
-            style={'font-size': '28px', 'font-weight': '700', 'color': '#1f2937', 'margin-bottom': '8px'}
+        pn.pane.HTML(
+            '<h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">📊 Data Quality Assessment Dashboard</h1>',
+            sizing_mode='stretch_width'
         ),
         pn.Spacer(height=8),
         score_card,
@@ -408,12 +407,12 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
         pn.Spacer(height=24),
         pn.Row(
             pn.Column(
-                pn.pane.Markdown("### Missing Values Analysis", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
                 missing_chart,
                 sizing_mode='stretch_width'
             ),
             pn.Column(
-                pn.pane.Markdown("### Quality Score Breakdown", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Quality Score Breakdown</h3>', sizing_mode='stretch_width'),
                 breakdown_chart,
                 sizing_mode='stretch_width'
             ),
@@ -422,19 +421,19 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
         pn.Spacer(height=24),
         pn.Row(
             pn.Column(
-                pn.pane.Markdown("### Outlier Distribution", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Distribution</h3>', sizing_mode='stretch_width'),
                 outlier_chart,
                 sizing_mode='stretch_width'
             ),
             pn.Column(
-                pn.pane.Markdown("### Anomaly Heatmap", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
                 anomaly_heatmap,
                 sizing_mode='stretch_width'
             ),
             sizing_mode='stretch_width'
         ),
         pn.Spacer(height=24),
-        pn.pane.Markdown("### Column-Level Quality Metrics", style={'font-size': '18px', 'font-weight': '600', 'color': '#1f2937'}),
+        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
         column_table,
         pn.Spacer(height=24),
         recommendations,
