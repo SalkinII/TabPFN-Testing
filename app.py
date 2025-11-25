@@ -482,7 +482,7 @@ def create_flagged_values_tab(results: dict, df: pd.DataFrame) -> pn.Tabs:
     # If no tabs created, show message
     if not tabs:
         no_data_pane = pn.pane.HTML(
-            '<div style="padding: 24px; text-align: center; color: #6b7280;">No flagged values found.</div>',
+            '<div class="dashboard-card" style="padding: 24px; text-align: center; color: var(--text-secondary);">No flagged values found.</div>',
             sizing_mode='stretch_width'
         )
         return pn.Tabs([('No Data', no_data_pane)])
@@ -565,7 +565,7 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     )
     
     export_panel = pn.Row(
-        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Export Quality Report</h3>', sizing_mode='stretch_width'),
+        pn.pane.HTML('<h3 class="section-heading">Export Quality Report</h3>', sizing_mode='stretch_width'),
         export_json_file,
         export_csv_file,
         sizing_mode='stretch_width'
@@ -583,9 +583,9 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
                 issues_list.append(f"<li><strong>{check_type.replace('_', ' ').title()}:</strong> {check_results.get('total_issues', 0)} issues</li>")
         
         clinical_issues_html = f"""
-        <div style="padding: 15px; background: #fff3cd; border-radius: 8px; border-left: 4px solid #ffc107; margin: 10px 0;">
-            <h4 style="margin-top: 0;">Clinical Quality Issues</h4>
-            <ul style="margin: 0; padding-left: 20px;">
+        <div class="dashboard-card" style="padding: 15px; border-left: 4px solid var(--warning-color);">
+            <h4 class="section-heading" style="margin-top: 0;">Clinical Quality Issues</h4>
+            <ul style="margin: 0; padding-left: 20px; color: var(--text-primary);">
                 {''.join(issues_list)}
             </ul>
         </div>
@@ -593,79 +593,103 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     
     clinical_pane = pn.pane.HTML(clinical_issues_html, sizing_mode='stretch_width') if clinical_issues_html else pn.pane.HTML("", height=0)
     
-    # Layout with improved spacing
+    # Layout with improved spacing and theme-aware styling
     dashboard = pn.Column(
         pn.pane.HTML(
-            '<h1 style="font-size: 28px; font-weight: 700; color: #1f2937; margin-bottom: 8px;">📊 Data Quality Assessment Dashboard</h1>',
+            '<h1 class="section-heading" style="font-size: 28px; font-weight: 700; margin-bottom: 8px;">📊 Data Quality Assessment Dashboard</h1>',
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=8),
-        score_card,
-        pn.Spacer(height=24),
-        summary_cards,
-        pn.Spacer(height=24),
+        pn.Spacer(height=16),
+        pn.Column(
+            score_card,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            summary_cards,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
-                missing_chart,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Missing Values Analysis</h3>', sizing_mode='stretch_width'),
+                pn.Column(missing_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 8, 0, 0)
             ),
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Quality Score Breakdown</h3>', sizing_mode='stretch_width'),
-                breakdown_chart,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Quality Score Breakdown</h3>', sizing_mode='stretch_width'),
+                pn.Column(breakdown_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 0, 0, 8)
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
+        pn.Spacer(height=32),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
-                outlier_chart,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
+                pn.Column(outlier_chart, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 8, 0, 0)
             ),
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
-                anomaly_heatmap,
-                sizing_mode='stretch_width'
+                pn.pane.HTML('<h3 class="section-heading">Anomaly Heatmap</h3>', sizing_mode='stretch_width'),
+                pn.Column(anomaly_heatmap, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+                sizing_mode='stretch_width',
+                margin=(0, 0, 0, 8)
             ),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
-        pn.Row(
-            pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
-                pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Outlier scores by row index, colored by percentile rank</p>', sizing_mode='stretch_width'),
-                outlier_scatter,
-                sizing_mode='stretch_width'
-            ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
+            pn.pane.HTML('<p class="section-subheading">Outlier scores by row index, colored by percentile rank</p>', sizing_mode='stretch_width'),
+            pn.Column(outlier_scatter, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
-        pn.Row(
-            pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Missing Values Heatmap</h3>', sizing_mode='stretch_width'),
-                pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Condensed view of missing value patterns across rows and columns</p>', sizing_mode='stretch_width'),
-                missing_heatmap,
-                sizing_mode='stretch_width'
-            ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Missing Values Heatmap</h3>', sizing_mode='stretch_width'),
+            pn.pane.HTML('<p class="section-subheading">Condensed view of missing value patterns across rows and columns</p>', sizing_mode='stretch_width'),
+            pn.Column(missing_heatmap, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
             sizing_mode='stretch_width'
         ),
-        pn.Spacer(height=24),
-        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
-        column_table,
-        pn.Spacer(height=24),
-        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Flagged Values Inspection</h3>', sizing_mode='stretch_width'),
-        pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Inspect specific rows and values that were flagged as outliers, missing, anomalies, or clinical issues</p>', sizing_mode='stretch_width'),
-        flagged_values_tab,
-        pn.Spacer(height=24),
-        recommendations,
-        clinical_pane,
-        pn.Spacer(height=24),
-        export_panel,
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
+            pn.Column(column_table, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            pn.pane.HTML('<h3 class="section-heading">Flagged Values Inspection</h3>', sizing_mode='stretch_width'),
+            pn.pane.HTML('<p class="section-subheading">Inspect specific rows and values that were flagged as outliers, missing, anomalies, or clinical issues</p>', sizing_mode='stretch_width'),
+            pn.Column(flagged_values_tab, css_classes=['dashboard-card'], sizing_mode='stretch_width'),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=32),
+        pn.Column(
+            recommendations,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
+        pn.Column(
+            clinical_pane,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ) if clinical_issues_html else pn.Spacer(height=0),
+        pn.Spacer(height=32),
+        pn.Column(
+            export_panel,
+            css_classes=['dashboard-card'],
+            sizing_mode='stretch_width'
+        ),
         sizing_mode='stretch_width',
         scroll=True,
-        margin=(0, 20, 20, 20)
+        margin=(0, 24, 24, 24)
     )
     
     return dashboard
@@ -731,6 +755,8 @@ def process_file(event):
     try:
         log_dev_event('file_upload', f"Processing file: {len(df)} rows, {len(df.columns)} columns")
         dashboard = create_dashboard(df)
+        # Store dashboard state for persistence
+        dashboard_pane._dashboard_state = dashboard
         dashboard_pane.objects = [dashboard]
         score = quality_results.get('quality_score', {}).get('overall_score', 0)
         status_class = 'status-success' if score >= 70 else 'status-warning' if score >= 60 else 'status-error'
@@ -740,9 +766,10 @@ def process_file(event):
         log_error(e, {'context': 'dashboard_creation', 'file_rows': len(df) if df is not None else 0})
         status_pane.object = f'<div class="status-message status-error">❌ Error during assessment: {str(e)}</div>'
         error_html = pn.pane.HTML(
-            f'<div style="padding: 24px; background: #fee2e2; border-radius: 12px; border-left: 4px solid #ef4444; color: #991b1b;"><h3 style="margin-top: 0;">Error</h3><p>{str(e)}</p></div>', 
+            f'<div class="dashboard-card" style="padding: 24px; border-left: 4px solid var(--danger-color);"><h3 style="margin-top: 0; color: var(--text-primary);">Error</h3><p style="color: var(--text-primary);">{str(e)}</p></div>', 
             sizing_mode='stretch_width'
         )
+        dashboard_pane._dashboard_state = error_html
         dashboard_pane.objects = [error_html]
 
 
@@ -760,59 +787,276 @@ status_pane = pn.pane.HTML(
     '<div class="status-message status-info">📁 Please upload a CSV file to begin assessment.</div>', 
     sizing_mode='stretch_width'
 )
-dashboard_pane = pn.Column(sizing_mode='stretch_width', scroll=True)
 
-# Custom CSS for modern styling
+# Create dashboard pane with persistent state
+# Use a reactive component to ensure it persists across theme changes
+dashboard_pane = pn.Column(sizing_mode='stretch_width', scroll=True)
+# Store reference to ensure persistence
+dashboard_pane._dashboard_state = None
+
+# Custom CSS for modern styling with dark mode support
 custom_css = """
 <style>
+    /* Light mode CSS variables */
     :root {
         --primary-color: #2563eb;
         --success-color: #10b981;
         --warning-color: #f59e0b;
         --danger-color: #ef4444;
         --bg-color: #f9fafb;
+        --bg-secondary: #ffffff;
         --text-primary: #1f2937;
         --text-secondary: #6b7280;
+        --text-tertiary: #9ca3af;
+        --border-color: #e5e7eb;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        --spacing-xs: 4px;
+        --spacing-sm: 8px;
+        --spacing-md: 16px;
+        --spacing-lg: 24px;
+        --spacing-xl: 32px;
+        --spacing-2xl: 48px;
     }
     
+    /* Dark mode CSS variables */
+    [data-theme="dark"], 
+    .dark-mode,
+    .bk-root[data-theme="dark"] {
+        --primary-color: #3b82f6;
+        --success-color: #10b981;
+        --warning-color: #f59e0b;
+        --danger-color: #ef4444;
+        --bg-color: #111827;
+        --bg-secondary: #1f2937;
+        --text-primary: #f9fafb;
+        --text-secondary: #d1d5db;
+        --text-tertiary: #9ca3af;
+        --border-color: #374151;
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+    }
+    
+    /* Base styling */
     .bk-panel-widget {
         font-family: 'Inter', system-ui, -apple-system, sans-serif;
     }
     
-    .dashboard-header {
-        margin-bottom: 24px;
+    /* Dashboard spacing utilities */
+    .dashboard-section {
+        margin-bottom: var(--spacing-xl);
+        padding: var(--spacing-lg);
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
     }
     
+    .dashboard-header {
+        margin-bottom: var(--spacing-lg);
+    }
+    
+    /* Status messages with theme support */
     .status-message {
         padding: 12px 16px;
         border-radius: 8px;
         margin: 12px 0;
         font-size: 14px;
         line-height: 1.5;
+        transition: all 0.2s ease;
     }
     
     .status-success {
-        background-color: #d1fae5;
-        color: #065f46;
+        background-color: rgba(16, 185, 129, 0.1);
+        color: var(--success-color);
         border-left: 4px solid var(--success-color);
     }
     
+    [data-theme="dark"] .status-success,
+    .dark-mode .status-success {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+    }
+    
     .status-warning {
-        background-color: #fef3c7;
-        color: #92400e;
+        background-color: rgba(245, 158, 11, 0.1);
+        color: var(--warning-color);
         border-left: 4px solid var(--warning-color);
     }
     
+    [data-theme="dark"] .status-warning,
+    .dark-mode .status-warning {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+    }
+    
     .status-error {
-        background-color: #fee2e2;
-        color: #991b1b;
+        background-color: rgba(239, 68, 68, 0.1);
+        color: var(--danger-color);
         border-left: 4px solid var(--danger-color);
     }
     
+    [data-theme="dark"] .status-error,
+    .dark-mode .status-error {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+    }
+    
     .status-info {
-        background-color: #dbeafe;
-        color: #1e40af;
+        background-color: rgba(37, 99, 235, 0.1);
+        color: var(--primary-color);
         border-left: 4px solid var(--primary-color);
+    }
+    
+    [data-theme="dark"] .status-info,
+    .dark-mode .status-info {
+        background-color: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+    }
+    
+    /* Theme-aware headings */
+    h1, h2, h3, h4, h5, h6 {
+        color: var(--text-primary);
+        transition: color 0.2s ease;
+    }
+    
+    /* Tabulator table styling */
+    .tabulator {
+        font-family: 'Inter', system-ui, -apple-system, sans-serif;
+        border-radius: 8px;
+        overflow: hidden;
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+    }
+    
+    .tabulator .tabulator-header {
+        background: var(--bg-color);
+        border-bottom: 2px solid var(--border-color);
+        font-weight: 600;
+        color: var(--text-primary);
+    }
+    
+    .tabulator .tabulator-header .tabulator-col {
+        background: var(--bg-color);
+        color: var(--text-primary);
+        border-right: 1px solid var(--border-color);
+    }
+    
+    .tabulator .tabulator-header .tabulator-col:hover {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-tableHolder {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-table {
+        background: var(--bg-secondary);
+    }
+    
+    .tabulator .tabulator-row {
+        background: var(--bg-secondary);
+        color: var(--text-primary);
+        border-bottom: 1px solid var(--border-color);
+        transition: background-color 0.15s ease;
+    }
+    
+    .tabulator .tabulator-row:hover {
+        background: var(--bg-color);
+    }
+    
+    .tabulator .tabulator-cell {
+        color: var(--text-primary);
+        border-right: 1px solid var(--border-color);
+        padding: 12px 16px;
+    }
+    
+    /* Custom scrollbar styling for Tabulator */
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-track {
+        background: var(--bg-color);
+        border-radius: 5px;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-thumb {
+        background: var(--text-tertiary);
+        border-radius: 5px;
+        transition: background 0.2s ease;
+    }
+    
+    .tabulator .tabulator-tableHolder::-webkit-scrollbar-thumb:hover {
+        background: var(--text-secondary);
+    }
+    
+    /* Firefox scrollbar */
+    .tabulator .tabulator-tableHolder {
+        scrollbar-width: thin;
+        scrollbar-color: var(--text-tertiary) var(--bg-color);
+    }
+    
+    /* Pagination styling */
+    .tabulator .tabulator-footer {
+        background: var(--bg-color);
+        border-top: 1px solid var(--border-color);
+        color: var(--text-primary);
+    }
+    
+    .tabulator .tabulator-page {
+        color: var(--text-primary);
+        background: var(--bg-secondary);
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        margin: 0 2px;
+        padding: 6px 12px;
+        transition: all 0.2s ease;
+    }
+    
+    .tabulator .tabulator-page:hover {
+        background: var(--bg-color);
+        border-color: var(--primary-color);
+    }
+    
+    .tabulator .tabulator-page.active {
+        background: var(--primary-color);
+        color: white;
+        border-color: var(--primary-color);
+    }
+    
+    /* Improved spacing for dashboard sections */
+    .dashboard-card {
+        padding: var(--spacing-lg);
+        margin-bottom: var(--spacing-lg);
+        background: var(--bg-secondary);
+        border-radius: 12px;
+        border: 1px solid var(--border-color);
+        box-shadow: var(--shadow-sm);
+        transition: box-shadow 0.2s ease;
+    }
+    
+    .dashboard-card:hover {
+        box-shadow: var(--shadow-md);
+    }
+    
+    /* Section headings */
+    .section-heading {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary);
+        margin-bottom: var(--spacing-md);
+        margin-top: 0;
+    }
+    
+    .section-subheading {
+        font-size: 13px;
+        color: var(--text-secondary);
+        margin-bottom: var(--spacing-sm);
+        margin-top: 0;
     }
 </style>
 """

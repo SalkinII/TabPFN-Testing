@@ -32,23 +32,15 @@ def create_quality_score_card(score: float, title: str = "Overall Quality Score"
         'danger': '#ef4444'    # Modern red
     }
     
-    bg_color_map = {
-        'success': '#d1fae5',  # Light green background
-        'warning': '#fef3c7',  # Light amber background
-        'info': '#dbeafe',     # Light blue background
-        'danger': '#fee2e2'    # Light red background
-    }
-    
     color = color_map.get(color_class, '#6b7280')
-    bg_color = bg_color_map.get(color_class, '#f3f4f6')
     
     html = f"""
-    <div style="text-align: center; padding: 32px 24px; background: {bg_color}; border-radius: 12px; border: 2px solid {color}; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); transition: transform 0.2s;">
-        <h3 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600; letter-spacing: -0.025em;">{title}</h3>
+    <div class="dashboard-card" style="text-align: center; padding: 32px 24px; border: 2px solid {color};">
+        <h3 style="margin: 0 0 16px 0; color: var(--text-primary); font-size: 18px; font-weight: 600; letter-spacing: -0.025em;">{title}</h3>
         <div style="font-size: 56px; font-weight: 700; color: {color}; margin: 16px 0; letter-spacing: -0.05em;">
             {formatted_score}
         </div>
-        <div style="font-size: 14px; color: #6b7280; font-weight: 500;">out of 100</div>
+        <div style="font-size: 14px; color: var(--text-secondary); font-weight: 500;">out of 100</div>
     </div>
     """
     
@@ -116,6 +108,7 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
         Panel Plotly pane
     """
     column_stats = missing_stats.get('column_missing_stats', {})
+    colors = get_theme_colors(False)  # Default to light, Plotly will adapt
     
     if not column_stats:
         # Empty chart with modern styling
@@ -124,12 +117,14 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
             text="No missing values detected",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#6b7280")
+            font=dict(size=16, color=colors['text_secondary'])
         )
         fig.update_layout(
-            plot_bgcolor='#f9fafb',
-            paper_bgcolor='#ffffff',
-            height=400
+            template=get_plotly_template(),
+            plot_bgcolor=colors['bg'],
+            paper_bgcolor=colors['paper_bg'],
+            height=400,
+            font=dict(color=colors['text'], family="Inter, system-ui, sans-serif")
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -137,43 +132,45 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
     percentages = [column_stats[col]['percentage'] for col in columns]
     
     # Modern color scheme
-    colors = ['#ef4444' if p > 20 else '#f59e0b' if p > 10 else '#10b981' for p in percentages]
+    bar_colors = ['#ef4444' if p > 20 else '#f59e0b' if p > 10 else '#10b981' for p in percentages]
     
     fig = go.Figure(data=[
         go.Bar(
             x=columns,
             y=percentages,
-            marker_color=colors,
+            marker_color=bar_colors,
             text=[f"{p:.1f}%" for p in percentages],
             textposition='outside',
-            textfont=dict(size=11, color="#374151"),
-            marker_line_color='#ffffff',
+            textfont=dict(size=11, color=colors['text']),
+            marker_line_color=colors['paper_bg'],
             marker_line_width=1.5,
             opacity=0.9
         )
     ])
     
     fig.update_layout(
+        template=get_plotly_template(),
         title=dict(
             text='Missing Values by Column',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title=dict(text='Column', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Column', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid'],
             gridwidth=1
         ),
         yaxis=dict(
-            title=dict(text='Missing Percentage (%)', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Missing Percentage (%)', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid'],
             gridwidth=1
         ),
         height=400,
         showlegend=False,
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor=colors['bg'],
+        paper_bgcolor=colors['paper_bg'],
+        font=dict(color=colors['text'], family="Inter, system-ui, sans-serif"),
         margin=dict(l=20, r=20, t=50, b=50)
     )
     
@@ -190,18 +187,22 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
     Returns:
         Panel Plotly pane
     """
+    colors = get_theme_colors(False)
+    
     if not outlier_scores:
         fig = go.Figure()
         fig.add_annotation(
             text="No outlier scores available",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#6b7280")
+            font=dict(size=16, color=colors['text_secondary'])
         )
         fig.update_layout(
-            plot_bgcolor='#f9fafb',
-            paper_bgcolor='#ffffff',
-            height=400
+            template=get_plotly_template(),
+            plot_bgcolor=colors['bg'],
+            paper_bgcolor=colors['paper_bg'],
+            height=400,
+            font=dict(color=colors['text'], family="Inter, system-ui, sans-serif")
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -210,7 +211,7 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
             x=outlier_scores,
             nbinsx=50,
             marker_color='#2563eb',
-            marker_line_color='#ffffff',
+            marker_line_color=colors['paper_bg'],
             marker_line_width=1,
             opacity=0.8
         )
@@ -230,26 +231,28 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
     )
     
     fig.update_layout(
+        template=get_plotly_template(),
         title=dict(
             text='Outlier Score Distribution',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title=dict(text='Outlier Score', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Outlier Score', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid'],
             gridwidth=1
         ),
         yaxis=dict(
-            title=dict(text='Frequency', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Frequency', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid'],
             gridwidth=1
         ),
         height=400,
         showlegend=False,
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor=colors['bg'],
+        paper_bgcolor=colors['paper_bg'],
+        font=dict(color=colors['text'], family="Inter, system-ui, sans-serif"),
         margin=dict(l=20, r=20, t=50, b=50)
     )
     
@@ -266,6 +269,7 @@ def create_quality_breakdown_chart(component_scores: Dict) -> pn.pane.Plotly:
     Returns:
         Panel Plotly pane
     """
+    colors = get_theme_colors(False)
     categories = list(component_scores.keys())
     values = [component_scores[cat] for cat in categories]
     
@@ -283,26 +287,28 @@ def create_quality_breakdown_chart(component_scores: Dict) -> pn.pane.Plotly:
     ))
     
     fig.update_layout(
+        template=get_plotly_template(),
         polar=dict(
             radialaxis=dict(
                 visible=True,
                 range=[0, 100],
-                tickfont=dict(size=11, color="#6b7280"),
-                gridcolor='#e5e7eb',
-                linecolor='#d1d5db'
+                tickfont=dict(size=11, color=colors['text_secondary']),
+                gridcolor=colors['grid'],
+                linecolor=colors['border']
             ),
             angularaxis=dict(
-                tickfont=dict(size=12, color="#374151")
+                tickfont=dict(size=12, color=colors['text'])
             )
         ),
         showlegend=False,
         title=dict(
             text='Quality Score Breakdown',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         height=400,
-        paper_bgcolor='#ffffff',
-        plot_bgcolor='#f9fafb'
+        paper_bgcolor=colors['paper_bg'],
+        plot_bgcolor=colors['bg'],
+        font=dict(color=colors['text'], family="Inter, system-ui, sans-serif")
     )
     
     return pn.pane.Plotly(fig, sizing_mode='stretch_width')
@@ -354,18 +360,22 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
     Returns:
         Panel Plotly pane
     """
+    colors = get_theme_colors(False)
+    
     if not anomaly_scores:
         fig = go.Figure()
         fig.add_annotation(
             text="No anomaly scores available",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#6b7280")
+            font=dict(size=16, color=colors['text_secondary'])
         )
         fig.update_layout(
-            plot_bgcolor='#f9fafb',
-            paper_bgcolor='#ffffff',
-            height=400
+            template=get_plotly_template(),
+            plot_bgcolor=colors['bg'],
+            paper_bgcolor=colors['paper_bg'],
+            height=400,
+            font=dict(color=colors['text'], family="Inter, system-ui, sans-serif")
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -389,30 +399,32 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
         colorscale=[[0, '#10b981'], [0.5, '#f59e0b'], [1, '#ef4444']],  # Green-Yellow-Red
         showscale=True,
         colorbar=dict(
-            title=dict(text="Anomaly Score", font=dict(size=12, color="#6b7280")),
-            tickfont=dict(size=10, color="#6b7280")
+            title=dict(text="Anomaly Score", font=dict(size=12, color=colors['text_secondary'])),
+            tickfont=dict(size=10, color=colors['text_secondary'])
         ),
         hovertemplate='Row: %{y}<br>Column: %{x}<br>Score: %{z:.2f}<extra></extra>'
     ))
     
     fig.update_layout(
+        template=get_plotly_template(),
         title=dict(
             text='Anomaly Score Heatmap (First 100 Records)',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title=dict(text='Column Group', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb'
+            title=dict(text='Column Group', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid']
         ),
         yaxis=dict(
-            title=dict(text='Row', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb'
+            title=dict(text='Row', font=dict(size=13, color=colors['text_secondary'])),
+            tickfont=dict(size=11, color=colors['text_secondary']),
+            gridcolor=colors['grid']
         ),
         height=400,
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor=colors['bg'],
+        paper_bgcolor=colors['paper_bg'],
+        font=dict(color=colors['text'], family="Inter, system-ui, sans-serif"),
         margin=dict(l=20, r=20, t=50, b=50)
     )
     
@@ -456,19 +468,19 @@ def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     if not recommendations:
         recommendations.append(("Good", "Data quality appears acceptable. Continue monitoring.", "#10b981"))
     
-    # Build recommendation items with modern styling
+    # Build recommendation items with modern styling using CSS variables
     items_html = ""
     for title, message, color in recommendations:
         items_html += f"""
-        <li style="margin: 12px 0; padding: 12px; background: #ffffff; border-radius: 8px; border-left: 4px solid {color}; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
+        <li style="margin: 12px 0; padding: 12px; background: var(--bg-secondary); border-radius: 8px; border-left: 4px solid {color}; box-shadow: var(--shadow-sm);">
             <strong style="color: {color}; font-size: 14px; display: block; margin-bottom: 4px;">{title}</strong>
-            <span style="color: #374151; font-size: 13px; line-height: 1.5;">{message}</span>
+            <span style="color: var(--text-primary); font-size: 13px; line-height: 1.5;">{message}</span>
         </li>
         """
     
     html = f"""
-    <div style="padding: 24px; background: #f9fafb; border-radius: 12px; border: 1px solid #e5e7eb; box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);">
-        <h4 style="margin: 0 0 16px 0; color: #1f2937; font-size: 18px; font-weight: 600;">Recommendations</h4>
+    <div class="dashboard-card" style="padding: 24px;">
+        <h4 class="section-heading" style="margin: 0 0 16px 0;">Recommendations</h4>
         <ul style="margin: 0; padding-left: 0; list-style: none;">
             {items_html}
         </ul>
@@ -501,6 +513,7 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
     Returns:
         Panel Plotly pane with scatter plot
     """
+    theme_colors = get_theme_colors(False)
     outlier_scores = outlier_results.get('outlier_scores', [])
     percentile_ranks = outlier_results.get('percentile_ranks', [])
     outlier_indices = outlier_results.get('outlier_indices', [])
@@ -511,12 +524,14 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
             text="No outlier data available",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#6b7280")
+            font=dict(size=16, color=theme_colors['text_secondary'])
         )
         fig.update_layout(
-            plot_bgcolor='#f9fafb',
-            paper_bgcolor='#ffffff',
-            height=400
+            template=get_plotly_template(),
+            plot_bgcolor=theme_colors['bg'],
+            paper_bgcolor=theme_colors['paper_bg'],
+            height=400,
+            font=dict(color=theme_colors['text'], family="Inter, system-ui, sans-serif")
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -524,16 +539,16 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
     row_indices = list(range(len(outlier_scores)))
     
     # Color mapping based on percentile rank
-    colors = []
+    marker_colors = []
     for rank in percentile_ranks:
         if rank < 50:
-            colors.append('#10b981')  # Green
+            marker_colors.append('#10b981')  # Green
         elif rank < 90:
-            colors.append('#f59e0b')  # Yellow/Amber
+            marker_colors.append('#f59e0b')  # Yellow/Amber
         elif rank < 95:
-            colors.append('#f97316')  # Orange
+            marker_colors.append('#f97316')  # Orange
         else:
-            colors.append('#ef4444')  # Red
+            marker_colors.append('#ef4444')  # Red
     
     # Create scatter plot
     fig = go.Figure()
@@ -543,10 +558,10 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
         y=outlier_scores,
         mode='markers',
         marker=dict(
-            color=colors,
+            color=marker_colors,
             size=8,
             opacity=0.7,
-            line=dict(width=1, color='white')
+            line=dict(width=1, color=theme_colors['paper_bg'])
         ),
         hovertemplate='<b>Row Index:</b> %{x}<br>' +
                       '<b>Outlier Score:</b> %{y:.3f}<br>' +
@@ -569,26 +584,28 @@ def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.p
     )
     
     fig.update_layout(
+        template=get_plotly_template(),
         title=dict(
             text='Outlier Distribution by Row Index',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=theme_colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title=dict(text='Row Index', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Row Index', font=dict(size=13, color=theme_colors['text_secondary'])),
+            tickfont=dict(size=11, color=theme_colors['text_secondary']),
+            gridcolor=theme_colors['grid'],
             gridwidth=1
         ),
         yaxis=dict(
-            title=dict(text='Outlier Score', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=11, color="#6b7280"),
-            gridcolor='#e5e7eb',
+            title=dict(text='Outlier Score', font=dict(size=13, color=theme_colors['text_secondary'])),
+            tickfont=dict(size=11, color=theme_colors['text_secondary']),
+            gridcolor=theme_colors['grid'],
             gridwidth=1
         ),
         height=400,
         showlegend=False,
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor=theme_colors['bg'],
+        paper_bgcolor=theme_colors['paper_bg'],
+        font=dict(color=theme_colors['text'], family="Inter, system-ui, sans-serif"),
         margin=dict(l=20, r=20, t=50, b=50)
     )
     
@@ -606,6 +623,7 @@ def create_missing_values_heatmap(missing_assessment: Dict, df: pd.DataFrame) ->
     Returns:
         Panel Plotly pane with heatmap
     """
+    theme_colors = get_theme_colors(False)
     columns_with_missing = missing_assessment.get('columns_with_missing', [])
     
     if not columns_with_missing or df is None or len(df) == 0:
@@ -614,12 +632,14 @@ def create_missing_values_heatmap(missing_assessment: Dict, df: pd.DataFrame) ->
             text="No missing values found",
             xref="paper", yref="paper",
             x=0.5, y=0.5, showarrow=False,
-            font=dict(size=16, color="#6b7280")
+            font=dict(size=16, color=theme_colors['text_secondary'])
         )
         fig.update_layout(
-            plot_bgcolor='#f9fafb',
-            paper_bgcolor='#ffffff',
-            height=400
+            template=get_plotly_template(),
+            plot_bgcolor=theme_colors['bg'],
+            paper_bgcolor=theme_colors['paper_bg'],
+            height=400,
+            font=dict(color=theme_colors['text'], family="Inter, system-ui, sans-serif")
         )
         return pn.pane.Plotly(fig, sizing_mode='stretch_width')
     
@@ -642,18 +662,23 @@ def create_missing_values_heatmap(missing_assessment: Dict, df: pd.DataFrame) ->
             row_data.append(1 if pd.isna(row[col]) else 0)
         missing_matrix.append(row_data)
     
+    # Create heatmap with theme-aware colors
+    present_color = theme_colors['paper_bg']
+    missing_color = '#ef4444'
+    
     # Create heatmap
     fig = go.Figure(data=go.Heatmap(
         z=missing_matrix,
         x=columns_with_missing,
         y=row_labels,
-        colorscale=[[0, '#ffffff'], [1, '#ef4444']],  # White to red
+        colorscale=[[0, present_color], [1, missing_color]],
         showscale=True,
         colorbar=dict(
-            title=dict(text="Missing", side="right"),
+            title=dict(text="Missing", side="right", font=dict(color=theme_colors['text_secondary'])),
             tickmode="array",
             tickvals=[0, 1],
-            ticktext=["Present", "Missing"]
+            ticktext=["Present", "Missing"],
+            tickfont=dict(size=10, color=theme_colors['text_secondary'])
         ),
         hovertemplate='<b>Row:</b> %{y}<br>' +
                       '<b>Column:</b> %{x}<br>' +
@@ -662,22 +687,24 @@ def create_missing_values_heatmap(missing_assessment: Dict, df: pd.DataFrame) ->
     ))
     
     fig.update_layout(
+        template=get_plotly_template(),
         title=dict(
             text='Missing Values Heatmap',
-            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+            font=dict(size=18, color=theme_colors['text'], family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title=dict(text='Column', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=10, color="#6b7280"),
+            title=dict(text='Column', font=dict(size=13, color=theme_colors['text_secondary'])),
+            tickfont=dict(size=10, color=theme_colors['text_secondary']),
             tickangle=-45
         ),
         yaxis=dict(
-            title=dict(text='Row', font=dict(size=13, color="#6b7280")),
-            tickfont=dict(size=10, color="#6b7280")
+            title=dict(text='Row', font=dict(size=13, color=theme_colors['text_secondary'])),
+            tickfont=dict(size=10, color=theme_colors['text_secondary'])
         ),
         height=min(600, max(400, len(sample_df) * 2)),
-        plot_bgcolor='#f9fafb',
-        paper_bgcolor='#ffffff',
+        plot_bgcolor=theme_colors['bg'],
+        paper_bgcolor=theme_colors['paper_bg'],
+        font=dict(color=theme_colors['text'], family="Inter, system-ui, sans-serif"),
         margin=dict(l=20, r=20, t=50, b=100)
     )
     
