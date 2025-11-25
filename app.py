@@ -73,6 +73,15 @@ def load_csv_file(file_input) -> pd.DataFrame:
     elif hasattr(file_input, '__len__') and len(file_input) == 0:
         log_dev_event('file_upload', 'FileInput value is empty')
         return None
+    elif hasattr(file_input, 'content_bytes') or hasattr(file_input, 'content_string'):
+        # Handle MockFileInput-like objects (for testing)
+        if hasattr(file_input, 'content_bytes') and file_input.content_bytes:
+            file_content = file_input.content_bytes
+        elif hasattr(file_input, 'content_string') and file_input.content_string:
+            file_content = file_input.content_string
+        else:
+            log_dev_event('file_upload', 'MockFileInput has no content')
+            return None
     else:
         # Direct bytes or other format
         file_content = file_input

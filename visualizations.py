@@ -159,15 +159,13 @@ def create_missing_values_chart(missing_stats: Dict) -> pn.pane.Plotly:
             font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title='Column',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Column', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb',
             gridwidth=1
         ),
         yaxis=dict(
-            title='Missing Percentage (%)',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Missing Percentage (%)', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb',
             gridwidth=1
@@ -237,15 +235,13 @@ def create_outlier_distribution_chart(outlier_scores: List[float]) -> pn.pane.Pl
             font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title='Outlier Score',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Outlier Score', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb',
             gridwidth=1
         ),
         yaxis=dict(
-            title='Frequency',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Frequency', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb',
             gridwidth=1
@@ -405,14 +401,12 @@ def create_anomaly_heatmap(anomaly_scores: List[float], n_rows: int = 100) -> pn
             font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
         ),
         xaxis=dict(
-            title='Column Group',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Column Group', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb'
         ),
         yaxis=dict(
-            title='Row',
-            titlefont=dict(size=13, color="#6b7280"),
+            title=dict(text='Row', font=dict(size=13, color="#6b7280")),
             tickfont=dict(size=11, color="#6b7280"),
             gridcolor='#e5e7eb'
         ),
