@@ -23,5 +23,5 @@ RUN mkdir -p logs docs
 EXPOSE 5006
 
 # Run the Panel application
-CMD ["panel", "serve", "app.py", "--address", "0.0.0.0", "--port", "5006", "--allow-websocket-origin=*", "--show"]
+CMD ["panel", "serve", "app.py", "--address", "0.0.0.0", "--port", "5006", "--allow-websocket-origin=*"]
 

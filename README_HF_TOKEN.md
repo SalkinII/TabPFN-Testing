@@ -1,6 +1,6 @@
 # Setting Up HuggingFace Token for TabPFN Authentication
 
-TabPFN models require authentication to download from HuggingFace. This guide shows you how to set up your token.
+TabPFN models require authentication to download from HuggingFace. This guide shows you how to set up your token for production deployment.
 
 ## Steps
 
@@ -19,86 +19,72 @@ TabPFN models require authentication to download from HuggingFace. This guide sh
 
 ### 3. Set Up Token for Docker
 
-#### Option A: Using dev.ps1 script (Recommended for Windows)
+#### Option A: Using Environment Variable (Recommended)
 
-1. Copy the example file:
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-2. Edit `.env` and add your token:
-   ```
-   HF_TOKEN=hf_your_actual_token_here
-   ```
-
-3. The `.env` file is already in `.gitignore`, so your token won't be committed.
-
-4. Use the PowerShell script to start (it automatically loads .env):
-   ```powershell
-   .\dev.ps1 start
-   ```
-   
-   Or for other operations:
-   ```powershell
-   .\dev.ps1 stop      # Stop container
-   .\dev.ps1 restart   # Restart container
-   .\dev.ps1 logs      # View logs
-   .\dev.ps1 status    # Check status
-   ```
-
-#### Option B: Using PowerShell environment variable
-
-Set the token as an environment variable before starting:
-
-```powershell
-$env:HF_TOKEN = "hf_your_actual_token_here"
-docker-compose -f docker-compose.dev.yml up
-```
-
-#### Option C: Using docker-compose --env-file
-
-```powershell
-docker-compose --env-file .env -f docker-compose.dev.yml up
-```
-
-#### Option B: Set Environment Variable Directly
-
-You can also pass the token directly when starting the container:
+Pass the token directly when starting the container:
 
 ```bash
 docker run -e HF_TOKEN=your_token_here -p 5006:5006 tabpfn-data-quality
 ```
 
-Or with docker-compose, add it to the command:
+#### Option B: Using .env File with Docker Compose
+
+1. Create a `.env` file in the project root:
+   ```
+   HF_TOKEN=hf_your_actual_token_here
+   ```
+
+2. The `.env` file is already in `.gitignore`, so your token won't be committed.
+
+3. Start with docker-compose:
+   ```bash
+   docker-compose -f docker-compose.prod.yml up -d
+   ```
+
+   Docker Compose will automatically load the `.env` file.
+
+#### Option C: Using Environment Variable with Docker Compose
+
+Set the token as an environment variable before starting:
 
 ```bash
-HF_TOKEN=your_token_here docker-compose -f docker-compose.dev.yml up
+export HF_TOKEN="hf_your_actual_token_here"
+docker-compose -f docker-compose.prod.yml up -d
+```
+
+Or on Windows PowerShell:
+```powershell
+$env:HF_TOKEN = "hf_your_actual_token_here"
+docker-compose -f docker-compose.prod.yml up -d
 ```
 
 ### 4. Verify It's Working
 
-After setting up the token, check the logs:
+After setting up the token, check the container logs:
 
 ```bash
-docker logs tabpfn-data-quality-dev | grep -i "huggingface\|token"
+docker logs tabpfn-data-quality | grep -i "huggingface\|token"
+```
+
+Or view full logs:
+```bash
+docker logs tabpfn-data-quality
 ```
 
 You should see:
 - "HuggingFace token found - TabPFN models will authenticate"
 - No authentication errors when models load
 
-### 5. Test TabPFN Models
+### 5. Test in Application
 
-Run the data quality tests to verify TabPFN models are working:
+1. Upload a CSV file through the web interface
+2. Check the quality assessment results
+3. If TabPFN models are working, you'll see:
+   - More sophisticated outlier detection
+   - Enhanced anomaly detection
+   - Better quality scoring
 
-```bash
-docker exec tabpfn-data-quality-dev python tests/test_data_quality.py
-```
-
-If the token is working, you should see:
-- TabPFN models initializing successfully
-- No "Authentication error" messages
-- Outlier detection using TabPFN instead of statistical fallback
+If the token is not set or invalid, the application will automatically fall back to statistical methods and still function correctly.
 
 ## Troubleshooting
 
@@ -107,14 +93,19 @@ If the token is working, you should see:
 1. **Check token format**: Should start with `hf_`
 2. **Verify token is valid**: Test at https://huggingface.co/settings/tokens
 3. **Check model access**: Make sure you accepted the license at https://huggingface.co/Prior-Labs/tabpfn_2_5
-4. **Check environment variable**: Run `docker exec tabpfn-data-quality-dev env | grep HF_TOKEN`
+4. **Check environment variable**: 
+   ```bash
+   docker exec tabpfn-data-quality env | grep HF_TOKEN
+   ```
 
 ### Still Using Fallback Methods
 
-If you see "statistical_fallback" in test output:
+If the application is using statistical fallback methods:
 - The token might not be set correctly
 - The model might not be accessible (check license acceptance)
-- This is okay - the app will still work, just with statistical methods instead of TabPFN
+- This is okay - the app will still work, just with statistical methods instead of TabPFN models
+
+You can verify by checking the logs for "statistical_fallback" messages.
 
 ## Security Notes
 
@@ -122,4 +113,4 @@ If you see "statistical_fallback" in test output:
 - Never share your HuggingFace token publicly
 - Use read-only tokens (not write tokens)
 - Rotate tokens periodically
-
+- For production deployments, consider using Docker secrets or your container orchestration platform's secret management

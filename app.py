@@ -74,7 +74,7 @@ def load_csv_file(file_input) -> pd.DataFrame:
         log_dev_event('file_upload', 'FileInput value is empty')
         return None
     elif hasattr(file_input, 'content_bytes') or hasattr(file_input, 'content_string'):
-        # Handle MockFileInput-like objects (for testing)
+        # Handle MockFileInput-like objects
         if hasattr(file_input, 'content_bytes') and file_input.content_bytes:
             file_content = file_input.content_bytes
         elif hasattr(file_input, 'content_string') and file_input.content_string:
@@ -615,18 +615,6 @@ app = pn.template.FastListTemplate(
         - **Anomaly Detection**: Identifies anomalous records
         - **Clinical Quality Checks**: Validates clinical data plausibility
         - **Quality Scoring**: Overall and component-level quality scores
-        
-        ---
-        
-        ## 🧪 Testing
-        
-        To test with corrupted data, use the `corrupt_data.py` script in Docker:
-        
-        ```bash
-        docker exec <container> python corrupt_data.py --source csvlate --corruption missing --level 10
-        ```
-        
-        See `docs/Corruption_Framework_Guide.md` for details.
         """),
         file_input,
         status_pane

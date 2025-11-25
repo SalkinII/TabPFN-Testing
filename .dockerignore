@@ -76,3 +76,17 @@ data/
 # Plan files
 *.plan.md
 
+# Testing and development files (production only)
+tests/
+corrupt/
+corrupt_max/
+csv1k/
+csvlate/
+corruption_framework.py
+corrupt_data.py
+dev.ps1
+dev.bat
+docker-compose.dev.yml
+TabPFN_Demo_Local.ipynb
+.cursor/
+

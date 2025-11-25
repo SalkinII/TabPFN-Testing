@@ -25,164 +25,37 @@ docker run -p 5006:5006 tabpfn-data-quality
 
 Then open your browser to `http://localhost:5006`
 
-### Iterative Development (No Rebuilds Required)
+### Using Docker Compose
 
-For faster development cycles without rebuilding the container:
-
-**Using PowerShell Helper Script (Recommended):**
-
-```powershell
-# Start development container with volume mounts
-.\dev.ps1 start
-
-# View logs in real-time
-.\dev.ps1 logs
-
-# Check container status
-.\dev.ps1 status
-
-# Stop container
-.\dev.ps1 stop
-
-# Restart container
-.\dev.ps1 restart
-
-# Clean old log files (older than 7 days)
-.\dev.ps1 clean
-```
-
-**Using Docker Compose:**
-
-```powershell
-# Start development container
-docker-compose -f docker-compose.dev.yml up -d
-
-# View logs
-docker-compose -f docker-compose.dev.yml logs -f
-
-# Stop container
-docker-compose -f docker-compose.dev.yml down
-```
-
-**Manual Docker Command:**
-
-```powershell
-# Run with volume mounts (code changes reflect immediately)
-docker run -p 5006:5006 -v ${PWD}:/app -v ${PWD}/logs:/app/logs tabpfn-data-quality
-```
-
-**Benefits:**
-- Code changes reflect immediately via volume mounts
-- Logs accessible from host in `logs/dev/` folder
-- Faster iteration - edit code locally, see changes instantly
-- Structured logging with timestamps and context
-
-### Running Tests
-
-All tests should be run inside the Docker container where all dependencies are installed. No local dependency installation is required.
-
-**Using PowerShell Helper Script (Recommended):**
-
-```powershell
-# Run all test suites (default)
-.\dev.ps1 test
-
-# Or specify a specific test suite
-.\dev.ps1 test all              # Run all test suites
-.\dev.ps1 test startup          # Run startup tests only
-.\dev.ps1 test web_app          # Run web app tests only
-.\dev.ps1 test csv_loading      # Run CSV loading tests only
-.\dev.ps1 test data_quality     # Run data quality tests only
-.\dev.ps1 test integration      # Run integration tests only
-```
-
-**Using Docker Directly:**
-
-```powershell
-# Run all tests (manual approach)
-docker exec tabpfn-data-quality-dev python tests/test_container_startup.py
-docker exec tabpfn-data-quality-dev python tests/test_csv_loading.py
-docker exec tabpfn-data-quality-dev python tests/test_data_quality.py
-docker exec tabpfn-data-quality-dev python tests/test_web_app.py
-docker exec tabpfn-data-quality-dev python tests/test_integration.py
-
-# Or run a specific test suite
-docker exec tabpfn-data-quality-dev python tests/test_startup.py
-```
-
-#### Test Suites Overview
-
-| Suite | Test File | Description |
-|-------|-----------|-------------|
-| `startup` | `test_container_startup.py` | Verifies app initialization, module imports, file paths, environment variables, and Panel extensions |
-| `csv_loading` | `test_csv_loading.py` | Tests CSV file loading with various formats, edge cases, and real dataset validation |
-| `data_quality` | `test_data_quality.py` | Validates TabPFN-based quality assessment including missing values, outliers, anomalies, and quality scoring |
-| `web_app` | `test_web_app.py` | Tests Panel web application functionality including file upload, event handling, and end-to-end pipeline |
-| `integration` | `test_integration.py` | End-to-end integration tests with real CSV files, error handling, and performance validation |
-| `all` | All test files | Runs all test suites sequentially in logical order |
-
-#### What Each Test Suite Validates
-
-**Startup Tests** (`startup`):
-- All required Python packages can be imported (panel, pandas, numpy, tabpfn, etc.)
-- Application initializes without errors
-- Required directories exist (logs, csv1k, csvlate)
-- Environment variables are set correctly (HF_TOKEN, PYTHONUNBUFFERED)
-- Panel extensions (plotly, tabulator) are available
-
-**CSV Loading Tests** (`csv_loading`):
-- Loading CSV files from different sources (csv1k, csvlate)
-- Handling empty CSV files
-- Handling CSV files with headers only
-- Handling malformed CSV files
-- Loading CSV content from string/bytes
-
-**Data Quality Tests** (`data_quality`):
-- DataQualityAssessor initialization
-- Missing value assessment
-- Outlier detection using TabPFN
-- Anomaly detection
-- Quality score calculation
-- Column-level quality assessment
-- Edge cases and error handling
-- Testing with real CSV files
-
-**Web App Tests** (`web_app`):
-- Event value extraction from Panel widgets
-- CSV loading with bytes conversion
-- File processing pipeline
-- End-to-end file upload and processing workflow
-
-**Integration Tests** (`integration`):
-- Complete end-to-end pipeline with real CSV files
-- Error handling for various edge cases
-- Performance testing with large files
-- Validation of complete workflow from file upload to quality assessment
-
-#### Exit Codes
-
-- `0`: All tests passed successfully
-- `1`: One or more tests failed
-
-When running `all` test suites, the script will continue running all suites even if one fails, and provide a summary at the end showing which suites passed and which failed.
-
-### Local Development (Optional)
-
-If you want to run the application locally (not recommended for testing):
+For production deployments, you can use Docker Compose:
 
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Start the application
+docker-compose -f docker-compose.prod.yml up -d
 
-# Run the application
-panel serve app.py --show
+# View logs
+docker-compose -f docker-compose.prod.yml logs -f
+
+# Stop the application
+docker-compose -f docker-compose.prod.yml down
 ```
 
-**Note:** For testing and development, using Docker is recommended as it ensures a consistent environment with all dependencies properly installed.
+### Environment Variables
+
+The application supports the following environment variables:
+
+- `HF_TOKEN`: (Optional) Hugging Face token for TabPFN model access. If not provided, TabPFN will use statistical fallback methods.
+- `PYTHONUNBUFFERED`: (Optional) Set to `1` for unbuffered Python output (useful for logging)
+
+Example with environment variables:
+
+```bash
+docker run -p 5006:5006 -e HF_TOKEN=your_token_here tabpfn-data-quality
+```
 
 ## Usage
 
-1. **Upload CSV File**: Use the file upload widget in the sidebar to upload your clinical data CSV file
+1. **Upload CSV File**: Use the file upload widget in the sidebar to upload your CSV file
 2. **Review Assessment**: The dashboard will automatically assess data quality and display:
    - Overall quality score (0-100)
    - Summary cards with key metrics
@@ -190,8 +63,15 @@ panel serve app.py --show
    - Outlier detection results
    - Anomaly scores
    - Column-level quality metrics
-   - Clinical quality checks
+   - Clinical quality checks (for clinical data)
    - Actionable recommendations
+
+### Supported File Formats
+
+- CSV files with standard delimiters (comma, semicolon, tab)
+- UTF-8 encoding (other encodings may be auto-detected)
+- Headers in first row
+- Any number of rows and columns
 
 ## Project Structure
 
@@ -199,10 +79,8 @@ panel serve app.py --show
 .
 ├── app.py                    # Main Panel application
 ├── data_quality.py           # TabPFN-based quality assessment
-├── visualizations.py         # Panel visualization components
-├── clinical_quality.py       # Clinical-specific quality checks
-├── corruption_framework.py   # Data corruption utilities (for testing)
-├── corrupt_data.py           # Standalone CLI script for batch corruption
+├── visualizations.py          # Panel visualization components
+├── clinical_quality.py        # Clinical-specific quality checks
 ├── utils.py                  # Helper functions
 ├── requirements.txt          # Python dependencies
 ├── Dockerfile                # Container definition
@@ -214,6 +92,7 @@ panel serve app.py --show
 ## Data Quality Metrics
 
 ### Overall Quality Score (0-100)
+
 Composite score based on:
 - Missing values (30% weight)
 - Outliers (30% weight)
@@ -221,12 +100,15 @@ Composite score based on:
 - Consistency (20% weight)
 
 ### Component Scores
+
 - **Missing Score**: Penalizes missing values
 - **Outlier Score**: Penalizes statistical outliers
 - **Anomaly Score**: Penalizes anomalous records
 - **Consistency Score**: Penalizes duplicate rows and data inconsistencies
 
 ### Clinical Quality Checks
+
+For clinical medicine data, the application performs additional checks:
 - Impossible values (e.g., age > 150)
 - Temporal inconsistencies (e.g., discharge before admission)
 - Referential integrity (missing/duplicate IDs)
@@ -234,69 +116,43 @@ Composite score based on:
 
 ## Logging
 
-All operations are logged to the `logs/` directory (gitignored):
-- **Development logs**: `logs/dev/` - Application startup, errors, file uploads, and performance metrics
-- **Assessment logs**: `logs/` - Quality assessment runs and results
-- **Corruption logs**: `logs/` - Data corruption operations (for testing)
+All operations are logged to the `logs/` directory:
+- **Assessment logs**: Quality assessment runs and results
+- **Error logs**: Application errors and exceptions
+- **Operation logs**: File uploads and processing events
 
-Logs are stored as JSON files with timestamps for easy parsing and analysis. Development logs are automatically created when running in development mode.
+Logs are stored as JSON files with timestamps for easy parsing and analysis. The logs directory structure is automatically created when the application starts.
 
-## Testing with Corrupted Data
+## Configuration
 
-The corruption framework provides utilities for testing TabPFN's detection capabilities. Use the standalone `corrupt_data.py` script to corrupt CSV files for testing.
+### Docker Deployment
 
-### Quick Start
+For production deployments, consider:
+
+1. **Volume Mounts**: Mount the `logs/` directory to persist logs:
+   ```bash
+   docker run -p 5006:5006 -v /path/to/logs:/app/logs tabpfn-data-quality
+   ```
+
+2. **Environment Variables**: Set via `-e` flag or `.env` file:
+   ```bash
+   docker run -p 5006:5006 -e HF_TOKEN=your_token tabpfn-data-quality
+   ```
+
+3. **Resource Limits**: Set appropriate CPU and memory limits:
+   ```bash
+   docker run -p 5006:5006 --memory="2g" --cpus="2" tabpfn-data-quality
+   ```
+
+### Port Configuration
+
+The application runs on port 5006 by default. To use a different port:
 
 ```bash
-# Corrupt all files in csvlate/ with 10% missing values
-docker exec <container> python corrupt_data.py --source csvlate --corruption missing --level 10
-
-# Corrupt single file with maximum corruption
-docker exec <container> python corrupt_data.py --source csvlate/patients.csv --corruption maximum
-
-# Corrupt with outliers at 5%
-docker exec <container> python corrupt_data.py --source csv1k --corruption outliers --level 5
+docker run -p 8080:5006 tabpfn-data-quality
 ```
 
-### Corruption Types
-
-- `missing`: Introduce missing values (NaN)
-- `outliers`: Introduce statistical outliers
-- `duplicates`: Introduce duplicate rows
-- `inconsistencies`: Introduce format inconsistencies
-- `maximum`: Apply all corruption types at maximum levels
-
-### Output
-
-Corrupted files are saved to the `corrupt/` directory, preserving the folder structure:
-- `csvlate/patients.csv` → `corrupt/csvlate/patients.csv`
-- `csv1k/encounters.csv` → `corrupt/csv1k/encounters.csv`
-
-### Documentation
-
-For detailed usage instructions, see:
-- **[Corruption Framework Guide](docs/Corruption_Framework_Guide.md)**: Complete API reference and usage examples
-- **[Testing Guide](docs/Testing_Guide.md)**: Step-by-step testing workflows
-- **[Logging Structure](docs/Logging_Structure.md)**: Understanding log files
-
-### Python API
-
-You can also use the corruption framework programmatically:
-
-```python
-from corruption_framework import DataCorruptor
-
-corruptor = DataCorruptor(random_seed=42)
-
-# Introduce missing values
-corrupted_df, details = corruptor.introduce_missing_values(df, missing_percentage=10.0)
-
-# Introduce outliers
-corrupted_df, details = corruptor.introduce_outliers(df, outlier_percentage=5.0)
-
-# Apply maximum corruption (all types)
-corrupted_df, details = corruptor.apply_maximum_corruption(df)
-```
+Then access at `http://localhost:8080`
 
 ## License
 
@@ -318,11 +174,6 @@ Comprehensive documentation is available in the `docs/` folder:
 
 ### Technical Documentation
 - **[TabPFN Data Quality Factors](docs/TabPFN_DataQuality_Factors.md)**: Crucial factors about TabPFN's data quality aspects
-- **[Findings Summary](docs/Findings_Summary.md)**: Key findings from experiments
-
-### Testing & Corruption
-- **[Corruption Framework Guide](docs/Corruption_Framework_Guide.md)**: Complete guide to using the corruption framework
-- **[Testing Guide](docs/Testing_Guide.md)**: Step-by-step testing workflows and validation
 - **[Logging Structure](docs/Logging_Structure.md)**: Understanding log files and log analysis
 
 ## Dependencies
@@ -334,13 +185,9 @@ Comprehensive documentation is available in the `docs/` folder:
 - Plotly >= 5.17.0
 - Matplotlib >= 3.7.0
 
-## Contributing
+## Support
 
-Contributions are welcome! Please ensure that:
-1. All code follows PEP 8 style guidelines
-2. Tests are added for new features
-3. Documentation is updated accordingly
-4. License compliance is maintained
+For issues, questions, or contributions, please refer to the project repository or contact the maintainers.
 
 ## References
 
