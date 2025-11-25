@@ -84,27 +84,87 @@ All tests should be run inside the Docker container where all dependencies are i
 **Using PowerShell Helper Script (Recommended):**
 
 ```powershell
-# Run container startup tests
+# Run all test suites (default)
 .\dev.ps1 test
+
+# Or specify a specific test suite
+.\dev.ps1 test all              # Run all test suites
+.\dev.ps1 test startup          # Run startup tests only
+.\dev.ps1 test web_app          # Run web app tests only
+.\dev.ps1 test csv_loading      # Run CSV loading tests only
+.\dev.ps1 test data_quality     # Run data quality tests only
+.\dev.ps1 test integration      # Run integration tests only
 ```
 
 **Using Docker Directly:**
 
 ```powershell
-# Run tests in running container
+# Run all tests (manual approach)
 docker exec tabpfn-data-quality-dev python tests/test_container_startup.py
+docker exec tabpfn-data-quality-dev python tests/test_csv_loading.py
+docker exec tabpfn-data-quality-dev python tests/test_data_quality.py
+docker exec tabpfn-data-quality-dev python tests/test_web_app.py
+docker exec tabpfn-data-quality-dev python tests/test_integration.py
 
-# Or start container and run tests
-docker-compose -f docker-compose.dev.yml up -d
-docker exec tabpfn-data-quality-dev python tests/test_container_startup.py
+# Or run a specific test suite
+docker exec tabpfn-data-quality-dev python tests/test_startup.py
 ```
 
-The test suite verifies:
-- All required modules can be imported
-- App initialization works correctly
-- Required file paths exist
-- Environment variables are set correctly
-- Panel extensions are available
+#### Test Suites Overview
+
+| Suite | Test File | Description |
+|-------|-----------|-------------|
+| `startup` | `test_container_startup.py` | Verifies app initialization, module imports, file paths, environment variables, and Panel extensions |
+| `csv_loading` | `test_csv_loading.py` | Tests CSV file loading with various formats, edge cases, and real dataset validation |
+| `data_quality` | `test_data_quality.py` | Validates TabPFN-based quality assessment including missing values, outliers, anomalies, and quality scoring |
+| `web_app` | `test_web_app.py` | Tests Panel web application functionality including file upload, event handling, and end-to-end pipeline |
+| `integration` | `test_integration.py` | End-to-end integration tests with real CSV files, error handling, and performance validation |
+| `all` | All test files | Runs all test suites sequentially in logical order |
+
+#### What Each Test Suite Validates
+
+**Startup Tests** (`startup`):
+- All required Python packages can be imported (panel, pandas, numpy, tabpfn, etc.)
+- Application initializes without errors
+- Required directories exist (logs, csv1k, csvlate)
+- Environment variables are set correctly (HF_TOKEN, PYTHONUNBUFFERED)
+- Panel extensions (plotly, tabulator) are available
+
+**CSV Loading Tests** (`csv_loading`):
+- Loading CSV files from different sources (csv1k, csvlate)
+- Handling empty CSV files
+- Handling CSV files with headers only
+- Handling malformed CSV files
+- Loading CSV content from string/bytes
+
+**Data Quality Tests** (`data_quality`):
+- DataQualityAssessor initialization
+- Missing value assessment
+- Outlier detection using TabPFN
+- Anomaly detection
+- Quality score calculation
+- Column-level quality assessment
+- Edge cases and error handling
+- Testing with real CSV files
+
+**Web App Tests** (`web_app`):
+- Event value extraction from Panel widgets
+- CSV loading with bytes conversion
+- File processing pipeline
+- End-to-end file upload and processing workflow
+
+**Integration Tests** (`integration`):
+- Complete end-to-end pipeline with real CSV files
+- Error handling for various edge cases
+- Performance testing with large files
+- Validation of complete workflow from file upload to quality assessment
+
+#### Exit Codes
+
+- `0`: All tests passed successfully
+- `1`: One or more tests failed
+
+When running `all` test suites, the script will continue running all suites even if one fails, and provide a summary at the end showing which suites passed and which failed.
 
 ### Local Development (Optional)
 
