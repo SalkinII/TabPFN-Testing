@@ -477,3 +477,209 @@ def create_recommendations_panel(quality_results: Dict) -> pn.pane.HTML:
     
     return pn.pane.HTML(html, sizing_mode='stretch_width')
 
+"""
+Panel visualization components for data quality metrics.
+"""
+
+import panel as pn
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+from typing import Dict, List, Optional
+from utils import format_quality_score
+
+
+def create_outlier_scatter_plot(outlier_results: Dict, df: pd.DataFrame) -> pn.pane.Plotly:
+    """
+    Create a scatter plot showing outlier scores with percentile-based coloring.
+    
+    Args:
+        outlier_results: Dictionary with outlier detection results
+        df: Original DataFrame for value lookups
+        
+    Returns:
+        Panel Plotly pane with scatter plot
+    """
+    outlier_scores = outlier_results.get('outlier_scores', [])
+    percentile_ranks = outlier_results.get('percentile_ranks', [])
+    outlier_indices = outlier_results.get('outlier_indices', [])
+    
+    if not outlier_scores or not percentile_ranks:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No outlier data available",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="#6b7280")
+        )
+        fig.update_layout(
+            plot_bgcolor='#f9fafb',
+            paper_bgcolor='#ffffff',
+            height=400
+        )
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+    
+    # Create row indices (0 to n-1)
+    row_indices = list(range(len(outlier_scores)))
+    
+    # Color mapping based on percentile rank
+    colors = []
+    for rank in percentile_ranks:
+        if rank < 50:
+            colors.append('#10b981')  # Green
+        elif rank < 90:
+            colors.append('#f59e0b')  # Yellow/Amber
+        elif rank < 95:
+            colors.append('#f97316')  # Orange
+        else:
+            colors.append('#ef4444')  # Red
+    
+    # Create scatter plot
+    fig = go.Figure()
+    
+    fig.add_trace(go.Scatter(
+        x=row_indices,
+        y=outlier_scores,
+        mode='markers',
+        marker=dict(
+            color=colors,
+            size=8,
+            opacity=0.7,
+            line=dict(width=1, color='white')
+        ),
+        hovertemplate='<b>Row Index:</b> %{x}<br>' +
+                      '<b>Outlier Score:</b> %{y:.3f}<br>' +
+                      '<b>Percentile Rank:</b> %{customdata:.1f}%<extra></extra>',
+        customdata=percentile_ranks,
+        name='Outliers'
+    ))
+    
+    # Add threshold line at 95th percentile
+    threshold = np.percentile(outlier_scores, 95)
+    fig.add_hline(
+        y=threshold,
+        line_dash="dash",
+        line_color="#ef4444",
+        line_width=2,
+        annotation_text=f"95th percentile ({threshold:.2f})",
+        annotation_position="right",
+        annotation_font_size=11,
+        annotation_font_color="#ef4444"
+    )
+    
+    fig.update_layout(
+        title=dict(
+            text='Outlier Distribution by Row Index',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        xaxis=dict(
+            title=dict(text='Row Index', font=dict(size=13, color="#6b7280")),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
+        yaxis=dict(
+            title=dict(text='Outlier Score', font=dict(size=13, color="#6b7280")),
+            tickfont=dict(size=11, color="#6b7280"),
+            gridcolor='#e5e7eb',
+            gridwidth=1
+        ),
+        height=400,
+        showlegend=False,
+        plot_bgcolor='#f9fafb',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=20, r=20, t=50, b=50)
+    )
+    
+    return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+
+
+def create_missing_values_heatmap(missing_assessment: Dict, df: pd.DataFrame) -> pn.pane.Plotly:
+    """
+    Create a condensed heatmap showing missing value patterns.
+    
+    Args:
+        missing_assessment: Dictionary with missing value assessment results
+        df: Original DataFrame
+        
+    Returns:
+        Panel Plotly pane with heatmap
+    """
+    columns_with_missing = missing_assessment.get('columns_with_missing', [])
+    
+    if not columns_with_missing or df is None or len(df) == 0:
+        fig = go.Figure()
+        fig.add_annotation(
+            text="No missing values found",
+            xref="paper", yref="paper",
+            x=0.5, y=0.5, showarrow=False,
+            font=dict(size=16, color="#6b7280")
+        )
+        fig.update_layout(
+            plot_bgcolor='#f9fafb',
+            paper_bgcolor='#ffffff',
+            height=400
+        )
+        return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+    
+    # Sample rows if dataset is too large (>1000 rows)
+    if len(df) > 1000:
+        # Take first 500 and last 500 rows
+        first_500 = df.head(500)
+        last_500 = df.tail(500)
+        sample_df = pd.concat([first_500, last_500])
+        row_labels = [f"Row {idx}" for idx in list(first_500.index) + list(last_500.index)]
+    else:
+        sample_df = df
+        row_labels = [f"Row {idx}" for idx in df.index]
+    
+    # Create binary matrix: 0 = present, 1 = missing
+    missing_matrix = []
+    for idx, row in sample_df.iterrows():
+        row_data = []
+        for col in columns_with_missing:
+            row_data.append(1 if pd.isna(row[col]) else 0)
+        missing_matrix.append(row_data)
+    
+    # Create heatmap
+    fig = go.Figure(data=go.Heatmap(
+        z=missing_matrix,
+        x=columns_with_missing,
+        y=row_labels,
+        colorscale=[[0, '#ffffff'], [1, '#ef4444']],  # White to red
+        showscale=True,
+        colorbar=dict(
+            title=dict(text="Missing", side="right"),
+            tickmode="array",
+            tickvals=[0, 1],
+            ticktext=["Present", "Missing"]
+        ),
+        hovertemplate='<b>Row:</b> %{y}<br>' +
+                      '<b>Column:</b> %{x}<br>' +
+                      '<b>Status:</b> %{customdata}<extra></extra>',
+        customdata=[["Missing" if val == 1 else "Present" for val in row] for row in missing_matrix]
+    ))
+    
+    fig.update_layout(
+        title=dict(
+            text='Missing Values Heatmap',
+            font=dict(size=18, color="#1f2937", family="Inter, system-ui, sans-serif")
+        ),
+        xaxis=dict(
+            title=dict(text='Column', font=dict(size=13, color="#6b7280")),
+            tickfont=dict(size=10, color="#6b7280"),
+            tickangle=-45
+        ),
+        yaxis=dict(
+            title=dict(text='Row', font=dict(size=13, color="#6b7280")),
+            tickfont=dict(size=10, color="#6b7280")
+        ),
+        height=min(600, max(400, len(sample_df) * 2)),
+        plot_bgcolor='#f9fafb',
+        paper_bgcolor='#ffffff',
+        margin=dict(l=20, r=20, t=50, b=100)
+    )
+    
+    return pn.pane.Plotly(fig, sizing_mode='stretch_width')
+

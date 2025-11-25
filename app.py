@@ -19,7 +19,9 @@ from visualizations import (
     create_quality_breakdown_chart,
     create_column_quality_table,
     create_anomaly_heatmap,
-    create_recommendations_panel
+    create_recommendations_panel,
+    create_outlier_scatter_plot,
+    create_missing_values_heatmap
 )
 from utils import calculate_basic_stats, log_operation, log_dev_event, log_error
 
@@ -268,22 +270,82 @@ def assess_data_quality(df: pd.DataFrame) -> dict:
     return quality_results
 
 
-def export_quality_report(results: dict, format: str = 'json') -> bytes:
+def export_quality_report(results: dict, df: pd.DataFrame, format: str = 'json') -> bytes:
     """
-    Export quality assessment results to a file.
+    Export quality assessment results to a file with row indices and flagged values.
     
     Args:
         results: Quality assessment results dictionary
+        df: Original DataFrame for value lookups
         format: Export format ('json' or 'csv')
         
     Returns:
         Bytes of the exported file
     """
     if format == 'json':
-        json_str = json.dumps(results, indent=2, default=str)
+        # Enhanced JSON with flagged values and row indices
+        export_data = {
+            'summary': {
+                'overall_score': results.get('quality_score', {}).get('overall_score', 0),
+                'missing_percentage': results.get('missing_assessment', {}).get('missing_percentage', 0),
+                'outlier_count': results.get('outlier_results', {}).get('outlier_count', 0),
+                'anomaly_count': results.get('anomaly_results', {}).get('anomaly_count', 0),
+                'clinical_issues': results.get('clinical_checks', {}).get('total_issues', 0),
+                'total_rows': len(df) if df is not None else 0,
+                'total_columns': len(df.columns) if df is not None else 0
+            },
+            'flagged_values': {
+                'outliers': [],
+                'missing': [],
+                'anomalies': [],
+                'clinical_issues': []
+            }
+        }
+        
+        # Add outlier details with values
+        outlier_indices = results.get('outlier_results', {}).get('outlier_indices', [])
+        for outlier_info in outlier_indices:
+            row_idx = outlier_info.get('row_index', -1)
+            if row_idx >= 0 and df is not None and row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                export_data['flagged_values']['outliers'].append({
+                    'row_index': row_idx,
+                    'outlier_score': outlier_info.get('outlier_score', 0),
+                    'percentile_rank': outlier_info.get('percentile_rank', 0),
+                    'values': {str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        # Add missing value details
+        missing_locations = results.get('missing_assessment', {}).get('missing_value_locations', [])
+        for missing_info in missing_locations:
+            row_idx = missing_info.get('row_index', -1)
+            col = missing_info.get('column', '')
+            if row_idx >= 0 and df is not None and row_idx < len(df) and col in df.columns:
+                export_data['flagged_values']['missing'].append({
+                    'row_index': row_idx,
+                    'column': col,
+                    'value_type': 'missing',
+                    'row_values': {str(k): str(v) for k, v in df.iloc[row_idx].to_dict().items()}
+                })
+        
+        # Add anomaly details
+        anomaly_indices = results.get('anomaly_results', {}).get('anomaly_indices', [])
+        for anomaly_info in anomaly_indices:
+            row_idx = anomaly_info.get('row_index', -1)
+            if row_idx >= 0 and df is not None and row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                export_data['flagged_values']['anomalies'].append({
+                    'row_index': row_idx,
+                    'anomaly_score': anomaly_info.get('outlier_score', 0),  # Uses outlier score
+                    'percentile_rank': anomaly_info.get('percentile_rank', 0),
+                    'values': {str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        json_str = json.dumps(export_data, indent=2, default=str)
         return json_str.encode('utf-8')
+    
     elif format == 'csv':
-        # Create a summary CSV
+        # Create summary CSV
         rows = []
         rows.append(['Metric', 'Value'])
         rows.append(['Overall Score', results.get('quality_score', {}).get('overall_score', 0)])
@@ -297,6 +359,135 @@ def export_quality_report(results: dict, format: str = 'json') -> bytes:
         return csv_str.encode('utf-8')
     else:
         raise ValueError(f"Unsupported format: {format}")
+
+
+def create_flagged_values_tab(results: dict, df: pd.DataFrame) -> pn.Tabs:
+    """
+    Create a tabbed interface for inspecting flagged values.
+    
+    Args:
+        results: Quality assessment results dictionary
+        df: Original DataFrame
+        
+    Returns:
+        Panel Tabs widget with flagged value tables
+    """
+    tabs = []
+    
+    # Outliers tab
+    outlier_indices = results.get('outlier_results', {}).get('outlier_indices', [])
+    if outlier_indices and df is not None:
+        outlier_data = []
+        for outlier_info in outlier_indices:
+            row_idx = outlier_info.get('row_index', -1)
+            if 0 <= row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                outlier_data.append({
+                    'Row Index': row_idx,
+                    'Outlier Score': f"{outlier_info.get('outlier_score', 0):.3f}",
+                    'Percentile Rank': f"{outlier_info.get('percentile_rank', 0):.1f}%",
+                    **{str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        if outlier_data:
+            outlier_df = pd.DataFrame(outlier_data)
+            outlier_table = pn.widgets.Tabulator(
+                outlier_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Outliers', outlier_table))
+    
+    # Missing values tab
+    missing_locations = results.get('missing_assessment', {}).get('missing_value_locations', [])
+    if missing_locations and df is not None:
+        missing_data = []
+        for missing_info in missing_locations:
+            row_idx = missing_info.get('row_index', -1)
+            col = missing_info.get('column', '')
+            if 0 <= row_idx < len(df) and col in df.columns:
+                row_data = df.iloc[row_idx].to_dict()
+                missing_data.append({
+                    'Row Index': row_idx,
+                    'Column': col,
+                    'Value Type': 'Missing',
+                    **{str(k): str(v) if not pd.isna(v) else 'NaN' for k, v in row_data.items()}
+                })
+        
+        if missing_data:
+            missing_df = pd.DataFrame(missing_data)
+            missing_table = pn.widgets.Tabulator(
+                missing_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Missing Values', missing_table))
+    
+    # Anomalies tab
+    anomaly_indices = results.get('anomaly_results', {}).get('anomaly_indices', [])
+    if anomaly_indices and df is not None:
+        anomaly_data = []
+        for anomaly_info in anomaly_indices:
+            row_idx = anomaly_info.get('row_index', -1)
+            if 0 <= row_idx < len(df):
+                row_data = df.iloc[row_idx].to_dict()
+                anomaly_data.append({
+                    'Row Index': row_idx,
+                    'Anomaly Score': f"{anomaly_info.get('outlier_score', 0):.3f}",
+                    'Percentile Rank': f"{anomaly_info.get('percentile_rank', 0):.1f}%",
+                    **{str(k): str(v) for k, v in row_data.items()}
+                })
+        
+        if anomaly_data:
+            anomaly_df = pd.DataFrame(anomaly_data)
+            anomaly_table = pn.widgets.Tabulator(
+                anomaly_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Anomalies', anomaly_table))
+    
+    # Clinical issues tab
+    clinical_checks = results.get('clinical_checks', {})
+    if clinical_checks.get('has_issues', False) and df is not None:
+        clinical_data = []
+        # Extract clinical issues (simplified - would need to track row indices in clinical_quality.py)
+        for check_type, check_results in clinical_checks.items():
+            if isinstance(check_results, dict) and check_results.get('has_issues'):
+                issue_count = check_results.get('total_issues', 0)
+                if issue_count > 0:
+                    clinical_data.append({
+                        'Issue Type': check_type.replace('_', ' ').title(),
+                        'Count': issue_count,
+                        'Details': str(check_results.get('details', ''))[:100]
+                    })
+        
+        if clinical_data:
+            clinical_df = pd.DataFrame(clinical_data)
+            clinical_table = pn.widgets.Tabulator(
+                clinical_df,
+                pagination='remote',
+                page_size=20,
+                sizing_mode='stretch_width',
+                height=500
+            )
+            tabs.append(('Clinical Issues', clinical_table))
+    
+    # If no tabs created, show message
+    if not tabs:
+        no_data_pane = pn.pane.HTML(
+            '<div style="padding: 24px; text-align: center; color: #6b7280;">No flagged values found.</div>',
+            sizing_mode='stretch_width'
+        )
+        return pn.Tabs([('No Data', no_data_pane)])
+    
+    return pn.Tabs(*tabs)
 
 
 def create_dashboard(df: pd.DataFrame) -> pn.Column:
@@ -330,9 +521,15 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     # Missing values chart
     missing_chart = create_missing_values_chart(results['missing_assessment'])
     
-    # Outlier distribution
+    # Outlier distribution (histogram)
     outlier_scores = results['outlier_results'].get('outlier_scores', [])
     outlier_chart = create_outlier_distribution_chart(outlier_scores)
+    
+    # Outlier scatter plot (new visualization)
+    outlier_scatter = create_outlier_scatter_plot(results['outlier_results'], df)
+    
+    # Missing values heatmap (new visualization)
+    missing_heatmap = create_missing_values_heatmap(results['missing_assessment'], df)
     
     # Quality breakdown
     component_scores = results['quality_score']['component_scores']
@@ -349,31 +546,33 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
     recommendations = create_recommendations_panel(results)
     
     # Export functionality
-    json_data = export_quality_report(results, format='json')
-    csv_data = export_quality_report(results, format='csv')
+    json_data = export_quality_report(results, df, format='json')
+    csv_data = export_quality_report(results, df, format='csv')
     
+    # Create FileDownload widgets with proper configuration
     export_json_file = pn.widgets.FileDownload(
-        file='quality_report.json',
-        button_type='primary',
+        file=io.BytesIO(json_data),
         filename='quality_report.json',
-        auto=True
+        button_type='primary',
+        auto=False
     )
-    export_json_file.file = json_data
     
     export_csv_file = pn.widgets.FileDownload(
-        file='quality_report.csv',
-        button_type='primary',
+        file=io.BytesIO(csv_data),
         filename='quality_report.csv',
-        auto=True
+        button_type='primary',
+        auto=False
     )
-    export_csv_file.file = csv_data
     
     export_panel = pn.Row(
-        pn.pane.Markdown("### Export Quality Report"),
+        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Export Quality Report</h3>', sizing_mode='stretch_width'),
         export_json_file,
         export_csv_file,
         sizing_mode='stretch_width'
     )
+    
+    # Flagged values inspection tab
+    flagged_values_tab = create_flagged_values_tab(results, df)
     
     # Clinical quality issues
     clinical_issues_html = ""
@@ -421,7 +620,7 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
         pn.Spacer(height=24),
         pn.Row(
             pn.Column(
-                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Distribution</h3>', sizing_mode='stretch_width'),
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Distribution (Histogram)</h3>', sizing_mode='stretch_width'),
                 outlier_chart,
                 sizing_mode='stretch_width'
             ),
@@ -433,8 +632,32 @@ def create_dashboard(df: pd.DataFrame) -> pn.Column:
             sizing_mode='stretch_width'
         ),
         pn.Spacer(height=24),
+        pn.Row(
+            pn.Column(
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Outlier Scatter Plot</h3>', sizing_mode='stretch_width'),
+                pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Outlier scores by row index, colored by percentile rank</p>', sizing_mode='stretch_width'),
+                outlier_scatter,
+                sizing_mode='stretch_width'
+            ),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=24),
+        pn.Row(
+            pn.Column(
+                pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Missing Values Heatmap</h3>', sizing_mode='stretch_width'),
+                pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Condensed view of missing value patterns across rows and columns</p>', sizing_mode='stretch_width'),
+                missing_heatmap,
+                sizing_mode='stretch_width'
+            ),
+            sizing_mode='stretch_width'
+        ),
+        pn.Spacer(height=24),
         pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Column-Level Quality Metrics</h3>', sizing_mode='stretch_width'),
         column_table,
+        pn.Spacer(height=24),
+        pn.pane.HTML('<h3 style="font-size: 18px; font-weight: 600; color: #1f2937;">Flagged Values Inspection</h3>', sizing_mode='stretch_width'),
+        pn.pane.HTML('<p style="color: #6b7280; font-size: 13px; margin-bottom: 8px;">Inspect specific rows and values that were flagged as outliers, missing, anomalies, or clinical issues</p>', sizing_mode='stretch_width'),
+        flagged_values_tab,
         pn.Spacer(height=24),
         recommendations,
         clinical_pane,
