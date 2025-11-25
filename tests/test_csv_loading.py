@@ -170,8 +170,8 @@ def main():
     # Test with real CSV files (relative to project root)
     project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     csv_files = [
-        (os.path.join(project_root, "csv1k/patients.csv"), "Small dataset (csv1k)"),
-        (os.path.join(project_root, "csvlate/patients.csv"), "Large dataset (csvlate)"),
+        (os.path.join(project_root, "csvlate/patients.csv"), "Small dataset (csvlate)"),
+        (os.path.join(project_root, "csv1k/patients.csv"), "Large dataset (csv1k)"),
     ]
     
     for file_path, description in csv_files:

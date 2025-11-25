@@ -773,7 +773,7 @@ def process_file(event):
     # event.new contains the new value, event.obj is the widget
     if event is None:
         status_pane.object = "⚠️ Please upload a CSV file."
-        dashboard_pane.objects = []
+        df_param.value = None  # Clear the reactive parameter
         return
     
     # Get the actual file value from the event
@@ -787,7 +787,7 @@ def process_file(event):
     
     if file_input is None or (hasattr(file_input, '__len__') and len(file_input) == 0):
         status_pane.object = '<div class="status-message status-warning">⚠️ Please upload a CSV file.</div>'
-        dashboard_pane.objects = []
+        df_param.value = None  # Clear the reactive parameter
         return
     
     # Load CSV
@@ -795,19 +795,19 @@ def process_file(event):
     
     if df is None:
         status_pane.object = '<div class="status-message status-error">❌ Error loading CSV file. Please check the file format.</div>'
-        dashboard_pane.objects = []
+        df_param.value = None  # Clear the reactive parameter
         return
     
     # Validate DataFrame is not empty
     if len(df) == 0:
         status_pane.object = '<div class="status-message status-error">❌ Error: CSV file is empty (0 rows). Please upload a file with data.</div>'
-        dashboard_pane.objects = []
+        df_param.value = None  # Clear the reactive parameter
         log_error(Exception("Empty DataFrame"), {'context': 'process_file', 'file_input_type': str(type(file_input[0]) if file_input and len(file_input) > 0 else None)})
         return
     
     if len(df.columns) == 0:
         status_pane.object = '<div class="status-message status-error">❌ Error: CSV file has no columns. Please check the file format.</div>'
-        dashboard_pane.objects = []
+        df_param.value = None  # Clear the reactive parameter
         log_error(Exception("No columns"), {'context': 'process_file', 'file_rows': len(df)})
         return
     
@@ -816,13 +816,12 @@ def process_file(event):
     # Update status
     status_pane.object = f'<div class="status-message status-info">✅ File loaded successfully! {len(df)} rows, {len(df.columns)} columns. Assessing data quality...</div>'
     
-    # Create dashboard
+    # Update the reactive parameter to trigger dashboard recreation
+    # This will automatically recreate the dashboard and persist across theme changes
     try:
         log_dev_event('file_upload', f"Processing file: {len(df)} rows, {len(df.columns)} columns")
-        dashboard = create_dashboard(df)
-        # Store dashboard state for persistence
-        dashboard_pane._dashboard_state = dashboard
-        dashboard_pane.objects = [dashboard]
+        # Set the parameter value to trigger reactive dashboard recreation
+        df_param.value = df
         score = quality_results.get('quality_score', {}).get('overall_score', 0)
         status_class = 'status-success' if score >= 70 else 'status-warning' if score >= 60 else 'status-error'
         status_pane.object = f'<div class="status-message {status_class}">✅ Assessment complete! Overall quality score: {score:.1f}/100</div>'
@@ -830,12 +829,8 @@ def process_file(event):
     except Exception as e:
         log_error(e, {'context': 'dashboard_creation', 'file_rows': len(df) if df is not None else 0})
         status_pane.object = f'<div class="status-message status-error">❌ Error during assessment: {str(e)}</div>'
-        error_html = pn.pane.HTML(
-            f'<div class="dashboard-card" style="padding: 24px; border-left: 4px solid var(--danger-color);"><h3 style="margin-top: 0; color: var(--text-primary);">Error</h3><p style="color: var(--text-primary);">{str(e)}</p></div>', 
-            sizing_mode='stretch_width'
-        )
-        dashboard_pane._dashboard_state = error_html
-        dashboard_pane.objects = [error_html]
+        # Still set the parameter so reactive function can handle the error
+        df_param.value = df
 
 
 # Create UI components
@@ -853,11 +848,33 @@ status_pane = pn.pane.HTML(
     sizing_mode='stretch_width'
 )
 
-# Create dashboard pane with persistent state
-# Use a reactive component to ensure it persists across theme changes
-dashboard_pane = pn.Column(sizing_mode='stretch_width', scroll=True)
-# Store reference to ensure persistence
-dashboard_pane._dashboard_state = None
+# Create a Parameter to track DataFrame for reactive updates
+df_param = pn.param.Parameter(default=None)
+
+# Reactive function that recreates dashboard when DataFrame changes
+def reactive_dashboard():
+    """
+    Reactive function that recreates the dashboard when DataFrame changes.
+    This ensures the dashboard persists across theme changes.
+    """
+    df_value = df_param.value
+    if df_value is None:
+        return pn.Column(sizing_mode='stretch_width', scroll=True)
+    
+    try:
+        dashboard = create_dashboard(df_value)
+        return dashboard
+    except Exception as e:
+        log_error(e, {'context': 'reactive_dashboard', 'df_rows': len(df_value) if df_value is not None else 0})
+        error_html = pn.pane.HTML(
+            f'<div class="dashboard-card" style="padding: 24px; border-left: 4px solid var(--danger-color);"><h3 style="margin-top: 0; color: var(--text-primary);">Error</h3><p style="color: var(--text-primary);">{str(e)}</p></div>', 
+            sizing_mode='stretch_width'
+        )
+        return pn.Column(error_html, sizing_mode='stretch_width', scroll=True)
+
+# Create dashboard pane using reactive function bound to df_param
+# This will automatically update when df_param.value changes
+dashboard_pane = pn.bind(reactive_dashboard, df_param.param.value)
 
 # Custom CSS for modern styling with dark mode support
 custom_css = """
@@ -1171,6 +1188,16 @@ app = pn.template.FastListTemplate(
     header_color='white',
     sidebar_width=320
 )
+
+# Watch for theme changes and restore dashboard if DataFrame exists
+def on_theme_change(event):
+    """Restore dashboard when theme changes if we have data."""
+    if current_df is not None and df_param.value is None:
+        # Theme changed but parameter wasn't set, restore it
+        df_param.value = current_df
+
+# Watch the app's theme parameter for changes
+app.param.watch(on_theme_change, 'theme')
 
 # Make servable
 app.servable()
