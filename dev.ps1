@@ -1,9 +1,9 @@
 # PowerShell Development Helper Script for TabPFN Data Quality Dashboard
-# Usage: .\dev.ps1 [start|stop|restart|logs|clean|status]
+# Usage: .\dev.ps1 [start|stop|restart|logs|clean|status|test|build]
 
 param(
     [Parameter(Position=0)]
-    [ValidateSet('start', 'stop', 'restart', 'logs', 'clean', 'status', 'build')]
+    [ValidateSet('start', 'stop', 'restart', 'logs', 'clean', 'status', 'test', 'build')]
     [string]$Command = 'start'
 )
 
@@ -109,6 +109,34 @@ function Build-Image {
     Write-Host "Image built successfully!" -ForegroundColor Green
 }
 
+function Run-Tests {
+    Write-Host "Running container startup tests..." -ForegroundColor Cyan
+    
+    # Check if container is running
+    $running = docker ps --filter "name=$ContainerName" --format "{{.Names}}"
+    
+    if ($running -ne $ContainerName) {
+        Write-Host "Container is not running. Starting container first..." -ForegroundColor Yellow
+        Start-DevContainer
+        Start-Sleep -Seconds 3  # Give container time to fully start
+    }
+    
+    Write-Host "Executing tests in container..." -ForegroundColor Green
+    Write-Host ""
+    
+    # Run tests inside the container
+    docker exec $ContainerName python tests/test_container_startup.py
+    
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) {
+        Write-Host "`n✅ All tests passed!" -ForegroundColor Green
+    } else {
+        Write-Host "`n❌ Some tests failed. Check output above for details." -ForegroundColor Red
+    }
+    
+    return $exitCode
+}
+
 # Main command dispatcher
 switch ($Command) {
     'start' {
@@ -131,6 +159,9 @@ switch ($Command) {
     }
     'build' {
         Build-Image
+    }
+    'test' {
+        Run-Tests
     }
 }
 

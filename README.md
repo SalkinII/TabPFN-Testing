@@ -77,7 +77,38 @@ docker run -p 5006:5006 -v ${PWD}:/app -v ${PWD}/logs:/app/logs tabpfn-data-qual
 - Faster iteration - edit code locally, see changes instantly
 - Structured logging with timestamps and context
 
-### Local Development
+### Running Tests
+
+All tests should be run inside the Docker container where all dependencies are installed. No local dependency installation is required.
+
+**Using PowerShell Helper Script (Recommended):**
+
+```powershell
+# Run container startup tests
+.\dev.ps1 test
+```
+
+**Using Docker Directly:**
+
+```powershell
+# Run tests in running container
+docker exec tabpfn-data-quality-dev python tests/test_container_startup.py
+
+# Or start container and run tests
+docker-compose -f docker-compose.dev.yml up -d
+docker exec tabpfn-data-quality-dev python tests/test_container_startup.py
+```
+
+The test suite verifies:
+- All required modules can be imported
+- App initialization works correctly
+- Required file paths exist
+- Environment variables are set correctly
+- Panel extensions are available
+
+### Local Development (Optional)
+
+If you want to run the application locally (not recommended for testing):
 
 ```bash
 # Install dependencies
@@ -86,6 +117,8 @@ pip install -r requirements.txt
 # Run the application
 panel serve app.py --show
 ```
+
+**Note:** For testing and development, using Docker is recommended as it ensures a consistent environment with all dependencies properly installed.
 
 ## Usage
 
