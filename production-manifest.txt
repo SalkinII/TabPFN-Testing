@@ -1,0 +1,38 @@
+# Production Branch File Manifest
+# This file lists all files and directories that should be included in the production branch.
+# Only files listed here will be synced from main to production.
+
+# Core application files
+app.py
+data_quality.py
+utils.py
+visualizations.py
+clinical_quality.py
+requirements.txt
+
+# Docker configuration
+Dockerfile
+.dockerignore
+.env.example
+
+# Production configuration
+docker-compose.prod.yml
+.github/workflows/docker-publish.yml
+
+# Documentation (production-relevant only)
+README.md
+README_HF_TOKEN.md
+LICENSE
+docs/User_Guide.md
+docs/Pipeline_Workflow.md
+docs/TabPFN_DataQuality_Factors.md
+docs/TabPFN_Error_Logging.md
+docs/TabPFN_Troubleshooting.md
+docs/Logging_Structure.md
+
+# Git configuration
+.gitignore
+
+# Sync configuration (needed for GitHub Actions)
+production-manifest.txt
+

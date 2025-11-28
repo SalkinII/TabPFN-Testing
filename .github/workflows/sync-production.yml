@@ -1,0 +1,114 @@
+name: Sync Main to Production
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:  # Allow manual triggering
+
+jobs:
+  sync-production:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Required to push to production branch
+    
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0  # Fetch full history
+    
+      - name: Checkout production branch
+        run: |
+          git fetch origin production:production || true
+          if git rev-parse --verify production >/dev/null 2>&1; then
+            git checkout production
+          else
+            echo "Production branch does not exist, creating it..."
+            git checkout -b production
+          fi
+    
+      - name: Read manifest file
+        id: manifest
+        run: |
+          if [ ! -f production-manifest.txt ]; then
+            echo "Error: production-manifest.txt not found!"
+            exit 1
+          fi
+          # Extract file list (skip comments and empty lines)
+          grep -v '^#' production-manifest.txt | grep -v '^$' > manifest_files.txt
+          echo "files=$(cat manifest_files.txt | tr '\n' ' ')" >> $GITHUB_OUTPUT
+    
+      - name: Sync files from main to production
+        run: |
+          # Switch back to main to get files
+          git checkout main
+          
+          # Read manifest files
+          FILES=$(grep -v '^#' production-manifest.txt | grep -v '^$')
+          
+          # Switch to production branch
+          git checkout production
+          
+          # Copy each file from main branch
+          for file in $FILES; do
+            if git cat-file -e "main:$file" 2>/dev/null; then
+              echo "Syncing: $file"
+              git checkout main -- "$file" || echo "Warning: Failed to sync $file"
+            else
+              echo "Warning: File $file does not exist in main branch"
+            fi
+          done
+          
+          # Remove files not in manifest (except .gitignore, workflow files, and dev files)
+          echo "Removing files not in manifest..."
+          MANIFEST_FILES=$(grep -v '^#' production-manifest.txt | grep -v '^$' | tr '\n' '|' | sed 's/|$//')
+          # Escape special regex characters and build exclusion pattern
+          EXCLUDE_PATTERN="^($MANIFEST_FILES|\.gitignore|\.github/workflows/sync-production\.yml|sync-to-production\.ps1|DEPLOYMENT\.md)$"
+          git ls-files | grep -vE "$EXCLUDE_PATTERN" | while read file; do
+            if [ -f "$file" ]; then
+              git rm --cached "$file" || true
+            fi
+          done || true
+          
+          # Show what changed
+          echo "Changes:"
+          git status --short
+    
+      - name: Commit changes
+        if: github.event_name == 'push'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          
+          COMMIT_MSG="Sync from main branch - $(date -u +'%Y-%m-%d %H:%M:%S UTC')
+          
+          Triggered by: ${{ github.event.head_commit.message }}
+          Commit: ${{ github.sha }}"
+          
+          git commit -m "$COMMIT_MSG"
+    
+      - name: Push to production branch
+        if: github.event_name == 'push'
+        run: |
+          git push origin production
+          echo "Pushed to production branch"
+    
+      - name: Summary
+        run: |
+          echo "## Sync Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- Source: main branch" >> $GITHUB_STEP_SUMMARY
+          echo "- Target: production branch" >> $GITHUB_STEP_SUMMARY
+          echo "- Triggered by: ${{ github.event.head_commit.message }}" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ github.event_name }}" == "push" ]; then
+            echo "- Status: Synced and pushed" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- Status: Dry run (manual trigger)" >> $GITHUB_STEP_SUMMARY
+          fi
+
