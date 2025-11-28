@@ -107,16 +107,41 @@ function Backup-ProductionBranch {
     }
     
     Write-Info "Creating backup branch: $BackupBranch"
-    try {
-        git checkout $ProductionBranch 2>&1 | Out-Null
-        git checkout -b $BackupBranch 2>&1 | Out-Null
-        git checkout $MainBranch 2>&1 | Out-Null
-        Write-Success "Backup branch created: $BackupBranch"
-        return $true
-    } catch {
-        Write-Warning "Failed to create backup branch: $_"
+    
+    # Get current branch
+    $currentBranch = git rev-parse --abbrev-ref HEAD 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to determine current branch, skipping backup"
         return $false
     }
+    
+    # Checkout production branch if not already on it
+    if ($currentBranch -ne $ProductionBranch) {
+        $output = git checkout $ProductionBranch 2>&1 | Out-String
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Failed to checkout $ProductionBranch branch for backup: $output"
+            return $false
+        }
+    }
+    
+    # Create backup branch
+    $output = git checkout -b $BackupBranch 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Failed to create backup branch: $output"
+        # Try to return to original branch
+        $null = git checkout $currentBranch 2>&1
+        return $false
+    }
+    
+    # Return to main branch
+    $output = git checkout $MainBranch 2>&1 | Out-String
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Backup created but failed to return to ${MainBranch}: $output"
+        # Backup was created, so return true even if checkout failed
+    }
+    
+    Write-Success "Backup branch created: $BackupBranch"
+    return $true
 }
 
 function Sync-Files {
@@ -124,11 +149,16 @@ function Sync-Files {
     
     Write-Info "Syncing files from $MainBranch to $ProductionBranch..."
     
-    # Checkout production branch
-    git checkout $ProductionBranch 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Failed to checkout $ProductionBranch branch"
-        return $false
+    # Get current branch
+    $currentBranch = git rev-parse --abbrev-ref HEAD
+    
+    # Checkout production branch if not already on it
+    if ($currentBranch -ne $ProductionBranch) {
+        $null = git checkout $ProductionBranch 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to checkout $ProductionBranch branch"
+            return $false
+        }
     }
     
     # Copy files from main branch
@@ -286,10 +316,11 @@ try {
         }
         Write-Host ""
         Write-Info "[DRY RUN] No changes made"
+        Write-Info "In actual run, a backup branch would be created before syncing"
         exit 0
     }
     
-    # Create backup
+    # Create backup (skip in dry-run)
     Backup-ProductionBranch
     
     # Sync files
@@ -308,8 +339,11 @@ try {
     Push-Changes -DryRun:$DryRun
     
     # Return to main branch
-    Write-Info "Returning to $MainBranch branch..."
-    git checkout $MainBranch 2>&1 | Out-Null
+    $currentBranch = git rev-parse --abbrev-ref HEAD
+    if ($currentBranch -ne $MainBranch) {
+        Write-Info "Returning to $MainBranch branch..."
+        $null = git checkout $MainBranch 2>&1
+    }
     
     Write-Host ""
     Write-Success "=========================================="
@@ -324,7 +358,10 @@ try {
 } catch {
     Write-Error "Error: $_"
     Write-Info "Returning to $MainBranch branch..."
-    git checkout $MainBranch 2>&1 | Out-Null
+    $currentBranch = git rev-parse --abbrev-ref HEAD
+    if ($currentBranch -ne $MainBranch) {
+        $null = git checkout $MainBranch 2>&1
+    }
     exit 1
 }
 
