@@ -13,6 +13,26 @@ $MainBranch = "main"
 $ProductionBranch = "production"
 $BackupBranch = "production-backup-$(Get-Date -Format 'yyyyMMdd-HHmmss')"
 
+# Helper function to run git commands without stderr noise
+function Invoke-GitCommand {
+    param(
+        [string[]]$Arguments,
+        [switch]$SuppressOutput
+    )
+    $oldErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    try {
+        $output = & git $Arguments 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+        if ($SuppressOutput) {
+            $null = $output
+        }
+        return @{ ExitCode = $exitCode; Output = $output }
+    } finally {
+        $ErrorActionPreference = $oldErrorAction
+    }
+}
+
 function Write-Info {
     param([string]$Message)
     Write-Host $Message -ForegroundColor Cyan
@@ -64,7 +84,11 @@ function Test-CleanWorkingDirectory {
 }
 
 function Test-CurrentBranch {
-    $currentBranch = git rev-parse --abbrev-ref HEAD
+    $currentBranch = git rev-parse --abbrev-ref HEAD 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warning "Could not determine current branch"
+        return $true  # Allow to continue
+    }
     if ($currentBranch -ne $MainBranch) {
         Write-Warning "Current branch is '$currentBranch', not '$MainBranch'"
         $response = Read-Host "Continue anyway? (y/N)"
@@ -109,34 +133,35 @@ function Backup-ProductionBranch {
     Write-Info "Creating backup branch: $BackupBranch"
     
     # Get current branch
-    $currentBranch = git rev-parse --abbrev-ref HEAD 2>$null
-    if ($LASTEXITCODE -ne 0) {
+    $result = Invoke-GitCommand -Arguments @("rev-parse", "--abbrev-ref", "HEAD") -SuppressOutput
+    if ($result.ExitCode -ne 0) {
         Write-Warning "Failed to determine current branch, skipping backup"
         return $false
     }
+    $currentBranch = ($result.Output | Out-String).Trim()
     
     # Checkout production branch if not already on it
     if ($currentBranch -ne $ProductionBranch) {
-        $output = git checkout $ProductionBranch 2>&1 | Out-String
-        if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Failed to checkout $ProductionBranch branch for backup: $output"
+        $result = Invoke-GitCommand -Arguments @("checkout", $ProductionBranch) -SuppressOutput
+        if ($result.ExitCode -ne 0) {
+            Write-Warning "Failed to checkout $ProductionBranch branch for backup"
             return $false
         }
     }
     
     # Create backup branch
-    $output = git checkout -b $BackupBranch 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Failed to create backup branch: $output"
+    $result = Invoke-GitCommand -Arguments @("checkout", "-b", $BackupBranch) -SuppressOutput
+    if ($result.ExitCode -ne 0) {
+        Write-Warning "Failed to create backup branch"
         # Try to return to original branch
-        $null = git checkout $currentBranch 2>&1
+        $null = Invoke-GitCommand -Arguments @("checkout", $currentBranch) -SuppressOutput
         return $false
     }
     
     # Return to main branch
-    $output = git checkout $MainBranch 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        Write-Warning "Backup created but failed to return to ${MainBranch}: $output"
+    $result = Invoke-GitCommand -Arguments @("checkout", $MainBranch) -SuppressOutput
+    if ($result.ExitCode -ne 0) {
+        Write-Warning "Backup created but failed to return to ${MainBranch}"
         # Backup was created, so return true even if checkout failed
     }
     
@@ -150,12 +175,13 @@ function Sync-Files {
     Write-Info "Syncing files from $MainBranch to $ProductionBranch..."
     
     # Get current branch
-    $currentBranch = git rev-parse --abbrev-ref HEAD
+    $result = Invoke-GitCommand -Arguments @("rev-parse", "--abbrev-ref", "HEAD") -SuppressOutput
+    $currentBranch = ($result.Output | Out-String).Trim()
     
     # Checkout production branch if not already on it
     if ($currentBranch -ne $ProductionBranch) {
-        $null = git checkout $ProductionBranch 2>&1
-        if ($LASTEXITCODE -ne 0) {
+        $result = Invoke-GitCommand -Arguments @("checkout", $ProductionBranch) -SuppressOutput
+        if ($result.ExitCode -ne 0) {
             Write-Error "Failed to checkout $ProductionBranch branch"
             return $false
         }
@@ -339,10 +365,11 @@ try {
     Push-Changes -DryRun:$DryRun
     
     # Return to main branch
-    $currentBranch = git rev-parse --abbrev-ref HEAD
-    if ($currentBranch -ne $MainBranch) {
+    $result = Invoke-GitCommand -Arguments @("rev-parse", "--abbrev-ref", "HEAD") -SuppressOutput
+    $currentBranch = ($result.Output | Out-String).Trim()
+    if ($currentBranch -and $currentBranch -ne $MainBranch) {
         Write-Info "Returning to $MainBranch branch..."
-        $null = git checkout $MainBranch 2>&1
+        $null = Invoke-GitCommand -Arguments @("checkout", $MainBranch) -SuppressOutput
     }
     
     Write-Host ""
@@ -358,9 +385,10 @@ try {
 } catch {
     Write-Error "Error: $_"
     Write-Info "Returning to $MainBranch branch..."
-    $currentBranch = git rev-parse --abbrev-ref HEAD
-    if ($currentBranch -ne $MainBranch) {
-        $null = git checkout $MainBranch 2>&1
+    $result = Invoke-GitCommand -Arguments @("rev-parse", "--abbrev-ref", "HEAD") -SuppressOutput
+    $currentBranch = ($result.Output | Out-String).Trim()
+    if ($currentBranch -and $currentBranch -ne $MainBranch) {
+        $null = Invoke-GitCommand -Arguments @("checkout", $MainBranch) -SuppressOutput
     }
     exit 1
 }
